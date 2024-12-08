@@ -1,0 +1,286 @@
+---
+title: "linear_dataset_project"
+author: "hetarth"
+date: "2024-11-27"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+# Load required libraries
+library(ggplot2) # For visualizations
+library(dplyr)   # For data manipulation
+
+# Define the file path
+file_path <- "C:/Users/chopr/Desktop/Statistics Subjects/STAT431-ThisYear/project/dataset/obesity_dataset_linear.csv"
+
+# Read the CSV file into a dataframe
+obesity_data <- read.csv(file_path)
+
+# Display the first few rows of the dataframe
+head(obesity_data)
+```
+
+
+```{r create-bmi-column, echo=TRUE}
+# Load necessary libraries
+library(dplyr)
+
+# Load dataset (assuming it's already loaded as `obesity_data`)
+# Create a new column for BMI
+obesity_data <- obesity_data %>%
+  mutate(BMI_cont = Weight / (Height ^ 2))
+
+# Display the first few rows to confirm the new column
+head(obesity_data)
+```
+
+### Cell 2: Convert Variables into Factors
+```{r convert-factors, echo=TRUE}
+# Convert appropriate variables into factors
+factor_vars <- c("Gender", "family_history_with_overweight", "FAVC", "CAEC", 
+                 "SMOKE", "SCC", "CALC", "MTRANS", "NObeyesdad")
+obesity_data[factor_vars] <- lapply(obesity_data[factor_vars], factor)
+
+# Check structure of the dataset to confirm the changes
+str(obesity_data)
+```
+
+
+```{r}
+# Identify numeric and categorical variables
+numeric_vars <- sapply(obesity_data, is.numeric)
+categorical_vars <- sapply(obesity_data, is.factor)
+
+numeric_var_names <- names(obesity_data)[numeric_vars]
+categorical_var_names <- names(obesity_data)[categorical_vars]
+
+# Plot numeric variables
+for (var in numeric_var_names) {
+  print(
+    ggplot(obesity_data, aes_string(x = var)) +
+      geom_histogram(binwidth = 0.1, fill = "skyblue", color = "black", alpha = 0.7) +
+      labs(title = paste("Distribution of", var), x = var, y = "Count") +
+      theme_minimal()
+  )
+}
+
+# Plot categorical variables
+for (var in categorical_var_names) {
+  print(
+    ggplot(obesity_data, aes_string(x = var)) +
+      geom_bar(fill = "lightgreen", color = "black", alpha = 0.7) +
+      labs(title = paste("Distribution of", var), x = var, y = "Count") +
+      theme_minimal() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  )
+}
+```
+
+
+```{r exploratory-data-analysis, echo=TRUE, warning=FALSE, message=FALSE}
+library(ggplot2)
+
+# Distribution of BMI
+ggplot(obesity_data, aes(x = BMI_cont)) +
+  geom_histogram(binwidth = 1, fill = "blue", color = "black", alpha = 0.7) +
+  labs(title = "Distribution of BMI", x = "BMI", y = "Count")
+
+# BMI by Gender
+ggplot(obesity_data, aes(x = Gender, y = BMI_cont, fill = Gender)) +
+  geom_boxplot() +
+  labs(title = "BMI by Gender", x = "Gender", y = "BMI")
+
+# Obesity Level Distribution
+ggplot(obesity_data, aes(x = NObeyesdad, fill = NObeyesdad)) +
+  geom_bar() +
+  labs(title = "Obesity Level Distribution", x = "Obesity Level", y = "Count") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Physical Activity Frequency vs Obesity Level
+ggplot(obesity_data, aes(x = FAF, fill = NObeyesdad)) +
+  geom_histogram(binwidth = 0.5, color = "black", alpha = 0.7) +
+  facet_wrap(~ NObeyesdad) +
+  labs(title = "Physical Activity Frequency by Obesity Level", 
+       x = "Frequency of Physical Activity (FAF)", y = "Count")
+
+```
+
+```{r drop-columns, echo=TRUE}
+# Drop the specified columns
+obesity_data <- obesity_data %>%
+  select(-Weight, -NObeyesdad)
+
+# Display the first few rows to confirm the changes
+head(obesity_data)
+```
+
+
+### Code to Plot Features for Predicting BMI
+```{r plot-bmi-features, echo=TRUE, warning=FALSE, message=FALSE}
+# Load necessary library
+library(ggplot2)
+
+# Scatterplots for Numeric Features vs BMI
+numeric_features <- names(obesity_data)[sapply(obesity_data, is.numeric)]
+numeric_features <- setdiff(numeric_features, "BMI_cont") # Exclude BMI itself
+
+for (feature in numeric_features) {
+  print(
+    ggplot(obesity_data, aes_string(x = feature, y = "BMI_cont")) +
+      geom_point(alpha = 0.5, color = "blue") +
+      geom_smooth(method = "lm", color = "red", se = FALSE) +
+      labs(title = paste("BMI vs", feature), x = feature, y = "BMI") +
+      theme_minimal()
+  )
+}
+
+# Boxplots for Categorical Features vs BMI
+categorical_features <- c("Gender", "family_history_with_overweight", "FAVC", 
+                          "CAEC", "SMOKE", "SCC", "CALC", "MTRANS")
+
+for (feature in categorical_features) {
+  print(
+    ggplot(obesity_data, aes_string(x = feature, y = "BMI_cont", fill = feature)) +
+      geom_boxplot() +
+      labs(title = paste("BMI by", feature), x = feature, y = "BMI") +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+      theme_minimal()
+  )
+}
+```
+# Data Preperation for JAGS
+```{r prepare-data-for-jags, echo=TRUE}
+# Load necessary libraries
+library(dplyr)
+
+# Step 1: Convert all factors from your dataset to numeric
+categorical_features <- c("Gender", "family_history_with_overweight", "FAVC", 
+                          "CAEC", "SMOKE", "SCC", "CALC", "MTRANS")
+
+
+
+# Convert all categorical features to numeric and subtract the min
+obesity_data[categorical_features] <- lapply(obesity_data[categorical_features], function(x) {
+  numeric_values <- as.numeric(factor(x))
+  numeric_values - min(numeric_values, na.rm = TRUE)
+
+})
+
+
+# Step 1: Define columns to be scaled
+columns_to_scale <- setdiff(names(obesity_data), c("Age", "Height", "BMI_cont", "group", "MTRANS"))
+
+# Step 2: Apply min-max scaling to the selected columns
+obesity_data[columns_to_scale] <- lapply(obesity_data[columns_to_scale], function(x) {
+  (x - min(x, na.rm = TRUE)) / (max(x, na.rm = TRUE) - min(x, na.rm = TRUE))
+})
+
+# Step 3: Verify scaling
+summary(obesity_data[columns_to_scale])  # Check that all scaled features are between 0 and 1
+
+# Step 2: Standardize "Age" and "Height"
+obesity_data <- obesity_data %>%
+  mutate(
+    Age = (Age - mean(Age, na.rm = TRUE)) / sd(Age, na.rm = TRUE),
+    Height = (Height - mean(Height, na.rm = TRUE)) / sd(Height, na.rm = TRUE),
+  )
+
+# Step 3: Prepare data for JAGS
+# List of predictors (excluding BMI_cont as it is the target variable)
+#predictors <- c("Age", "Height", "Gender", "family_history_with_overweight", "FAVC",
+#                "CAEC", "SMOKE", "SCC", "CALC", "MTRANS", "FAF", "TUE", "CH2O", "NCP", "FCVC")
+
+predictors <- c("Age", "Height", "Gender", "family_history_with_overweight", "FAVC",
+                "CAEC", "SMOKE", "SCC", "CALC", "FAF", "TUE", "CH2O", "NCP", "FCVC")
+
+# Create the predictor matrix X
+X <- as.matrix(obesity_data[, predictors])
+
+# Number of observations
+N <- nrow(obesity_data)
+
+# Create group variable (based on "MTRANS" as an example, adjust if needed)
+obesity_data$group <- obesity_data$MTRANS  # Example grouping variable
+obesity_data$group <- as.integer(as.factor(obesity_data$group))
+J <- length(unique(obesity_data$group))  # Number of groups
+
+# Number of predictors
+P <- ncol(X)
+
+# Print the structure of the processed data
+str(obesity_data)
+
+# Print dimensions for validation
+cat("Dimensions of X:", dim(X), "\n")
+cat("Number of Observations (N):", N, "\n")
+cat("Number of Groups (J):", J, "\n")
+cat("Number of Predictors (P):", P, "\n")
+
+```
+```{r}
+# Prepare data list for JAGS
+jags_data <- list(
+  N = N,          # Number of observations
+  J = J,  # Number of groups
+  BMI_cont = obesity_data$BMI_cont, # Response variable
+  X = X,                           # Predictor matrix
+  group = obesity_data$group       # Group variable
+)
+```
+
+```{r}
+# Initial values
+inits <- function() {
+  list(
+    beta0 = 0,
+    beta = rep(0, ncol(X)),
+    u = rep(0, length(unique(obesity_data$group))),
+    sigma2 = 1,
+    tau2 = 1
+  )
+}
+```
+
+```{r}
+library(rjags)
+library(coda)
+
+# Create JAGS model
+model <- jags.model("new_model.bug", data = jags_data, inits = inits, n.chains = 3)
+
+# Burn-in period
+#update(model, 1000)
+
+# Sample from posterior
+samples <- coda.samples(model, variable.names = c("beta0", "beta", "u", "sigma2", "tau2"), n.iter = 5000)
+```
+
+```{r}
+print("Summary is - ") 
+summary(samples)
+plot(samples, density=FALSE, trace=TRUE, auto.layout = TRUE , ask=FALSE)  # preliminary trace plots and densities
+
+autocorr.plot(samples[1])
+gelman_results <-gelman.diag(samples, autoburnin=FALSE)
+gelman.plot(samples, autoburnin=FALSE)
+print(gelman_results)
+
+gelman_diag <- gelman.diag(samples, multivariate = FALSE)
+print(gelman_diag)
+```
+
+```{r}
+
+```
+
+
+
+
