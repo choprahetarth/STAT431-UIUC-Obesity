@@ -38,6 +38,11 @@ library(dplyr)
 obesity_data <- obesity_data %>%
   mutate(BMI_cont = Weight / (Height ^ 2))
 
+# Square the BMI_cont column and store it as a new column, BMI_squared
+obesity_data <- obesity_data %>%
+  mutate(BMI_squared = BMI_cont ^ 2)
+
+
 # Display the first few rows to confirm the new column
 head(obesity_data)
 ```
@@ -195,11 +200,12 @@ obesity_data <- obesity_data %>%
 
 # Step 3: Prepare data for JAGS
 # List of predictors (excluding BMI_cont as it is the target variable)
-#predictors <- c("Age", "Height", "Gender", "family_history_with_overweight", "FAVC",
-#                "CAEC", "SMOKE", "SCC", "CALC", "MTRANS", "FAF", "TUE", "CH2O", "NCP", "FCVC")
 
+
+#predictors <- c("Age", "Height", "Gender", "family_history_with_overweight", "FAVC",
+#                "CAEC", "SMOKE", "SCC", "CALC", "FAF", "TUE", "CH2O", "NCP", "FCVC")
 predictors <- c("Age", "Height", "Gender", "family_history_with_overweight", "FAVC",
-                "CAEC", "SMOKE", "SCC", "CALC", "FAF", "TUE", "CH2O", "NCP", "FCVC")
+                "SMOKE", "SCC", "FAF", "TUE", "CH2O", "NCP", "FCVC")
 
 # Create the predictor matrix X
 X <- as.matrix(obesity_data[, predictors])
@@ -243,8 +249,10 @@ inits <- function() {
     beta0 = 0,
     beta = rep(0, ncol(X)),
     u = rep(0, length(unique(obesity_data$group))),
-    sigma2 = 1,
-    tau2 = 1
+    tau_residual = 0.5, 
+    tau_group=1
+    #sigma2 = 1,
+    #tau2 = 1
   )
 }
 ```
@@ -254,13 +262,16 @@ library(rjags)
 library(coda)
 
 # Create JAGS model
-model <- jags.model("new_model.bug", data = jags_data, inits = inits, n.chains = 3)
+model <- jags.model("question_3.bug", data = jags_data, inits = inits, n.chains = 3)
 
 # Burn-in period
 #update(model, 1000)
 
 # Sample from posterior
-samples <- coda.samples(model, variable.names = c("beta0", "beta", "u", "sigma2", "tau2"), n.iter = 5000)
+samples <- coda.samples(model, variable.names = c("beta0", "beta", "u", "sigma2", "tau_group"), n.iter = 5000)
+```
+```{r}
+samples <- coda.samples(model, variable.names = c("beta0", "beta", "u", "sigma2", "tau_group"), n.iter = 10000)
 ```
 
 ```{r}
@@ -277,9 +288,6 @@ gelman_diag <- gelman.diag(samples, multivariate = FALSE)
 print(gelman_diag)
 ```
 
-```{r}
-
-```
 
 
 

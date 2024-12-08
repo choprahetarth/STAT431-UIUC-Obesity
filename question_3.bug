@@ -16,38 +16,28 @@ model {
   
   beta[1] ~ dexp(0.04)           # Prior for Age (choosing between either Gamma or Exponential) 0.04 lambda highly informative prior
   beta[2] ~ dnorm(1.7, 0.08)     # Prior for Height (Normal Distribution)  1.7,0.08 for highly informative prior
-  beta[3] ~ dbeta(1, 1)          # Prior for Gender (it is a binomial for both equal probs for male and female)
-  beta[4] ~ dbeta(1, 1)  # Prior for family_history_with_overweight
-  beta[5] ~ dbeta(1, 1)      # Prior for FAVC
-  beta[6] ~ dnorm(0, 0.001)      # Prior for CAEC (it is uninformative, need to do something else)
-  beta[7] ~ dbeta(1, 1)          # Prior for SMOKE (it is informative, as no's are more than yes's)
-  beta[8] ~ dbeta(1, 1)  # Prior for SCC
-  beta[9] ~ dbeta(1,1)      # Prior for CALC
-  beta[10] ~ dbeta(1, 1)     # Prior for FAF
+  beta[3] ~ dnorm(0, 0.001)         # Prior for Gender (it is a binomial for both equal probs for male and female)
+  beta[4] ~ dnorm(0, 0.001)  # Prior for family_history_with_overweight
+  beta[5] ~ dnorm(0, 0.001)      # Prior for FAVC
+  #beta[6] ~ dnorm(0, 0.001)      # Prior for CAEC (it is uninformative, need to do something else)
+  beta[6] ~ dnorm(0, 0.001)          # Prior for SMOKE (it is informative, as no's are more than yes's)
+  beta[7] ~ dnorm(0, 0.001)  # Prior for SCC
+  #beta[9] ~ dnorm(0, 0.001)      # Prior for CALC
+  beta[8] ~ dnorm(0, 0.001)    # Prior for FAF
   pi[1:4] ~ ddirch(c(1, 1, 1, 1))  # Dirichlet prior for CALC probabilities
-  beta[11] ~ dnorm(0,0.000001)  # uninformative prior for TUE
-  beta[12] ~ dnorm(0,0.000001)  # uninformative prior for CH2O
-  beta[13] ~ dbeta(1, 1)     # Prior for NCP
-  beta[14] ~ dbeta(1, 0.6)     # Prior for FCVC
-  
-  #beta[8] ~ dbin(1, 0.1)         # Prior for SCC (it is informative, as no's are more than yes's)
-  #beta[9] ~ dmulti(pi[1:4], 1)   # Prior for CALC (with these probabiltiies)
-  # Fixed probabilities for the multinomial distribution
-  #pi[1] <- 0.02
-  #pi[2] <- 0.18
-  #pi[3] <- 0.2
-  #pi[4] <- 0.6
-  #beta[4] ~ dbin(1, 0.7)         # Prior for family_history_with_overweight (it is informative)
-  #beta[5] ~ dbin(1, 0.9)         # Prior for FAVC (it is informative)
-  #beta[10] ~ dbin(3,0.1)        # informative prior for FAF
-  #beta[13] ~ dbin(2,0.9)        # informative prior for FCVC
-  
-
+  beta[9] ~ dnorm(0,0.000001)  # uninformative prior for TUE
+  beta[10] ~ dnorm(0,0.000001)  # uninformative prior for CH2O
+  beta[11] ~ dnorm(0, 0.001)   # Prior for NCP
+  beta[12] ~ dnorm(0, 0.001)     # Prior for FCVC
 
   # Priors for variances
-  tau_residual <- 1 / sigma2
-  sigma2 ~ dgamma(0.01, 0.01)
+  #tau_residual <- 1 / sigma2
+  #sigma2 ~ dgamma(0.01, 0.01)
+  tau_residual ~ dgamma(0.01, 0.01)
+  sigma2 <- 1 / tau_residual
 
-  tau_group <- 1 / tau2
-  tau2 ~ dgamma(0.01, 0.01)
+
+  #tau_group <- 1 / tau2
+  #tau2 ~ dgamma(0.01, 0.01)
+  tau_group ~ dexp(1)
 }
