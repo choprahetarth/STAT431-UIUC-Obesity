@@ -1,0 +1,47 @@
+---
+title: "R Notebook"
+output: rmarkdown::github_document
+---
+
+```{r}
+library(rjags)
+library(dplyr)
+library(MASS)
+df =  read.csv("C:/Users/Prathik/Documents/Prathik/Codes/R/Stat 431/ObesityDataSet_raw_and_data_sinthetic.csv")
+```
+
+```{r}
+obesity_data = df %>% distinct()
+obesity_data = obesity_data %>%
+mutate(BMI_cont = Weight / (Height ^ 2))
+bmi = obesity_data$BMI_cont
+bmi2 = bmi^2
+```
+
+```{r}
+# Untransformed BMI normality check
+qqnorm(bmi)
+qqline(bmi)
+ks.test(x = bmi,"pnorm")
+```
+
+```{r}
+bc = boxcox(lm(bmi ~ 1))
+lambda = bc$x[which.max(bc$y)]
+```
+
+```{r}
+# Normality test for transformed BMI
+
+bmi_t = (bmi^lambda - 1) / lambda
+qqnorm(bmi_t)
+qqline(bmi_t)
+ks.test(x = bmi_t,"pnorm")
+```
+
+```{r}
+# Squared BMI
+# Best transformation?
+qqnorm(bmi2)
+qqline(bmi2)
+```
