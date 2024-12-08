@@ -7,7 +7,7 @@ output: rmarkdown::github_document
 library(rjags)
 library(dplyr)
 library(MASS)
-df =  read.csv("C:/Users/Prathik/Documents/Prathik/Codes/R/Stat 431/ObesityDataSet_raw_and_data_sinthetic.csv")
+df =  read.csv(paste(path,"obesity_dataset_linear.csv",sep = "/"))
 ```
 
 ```{r}
