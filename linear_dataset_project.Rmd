@@ -19,10 +19,10 @@ library(ggplot2) # For visualizations
 library(dplyr)   # For data manipulation
 
 # Define the file path
-file_path <- "C:/Users/chopr/Desktop/Statistics Subjects/STAT431-ThisYear/project/dataset/obesity_dataset_linear.csv"
+file_path <- getwd()
 
 # Read the CSV file into a dataframe
-obesity_data <- read.csv(file_path)
+obesity_data <- read.csv(paste(file_path,"obesity_dataset_linear.csv",sep = "/"))
 
 # Display the first few rows of the dataframe
 head(obesity_data)
@@ -204,7 +204,7 @@ obesity_data <- obesity_data %>%
 
 #predictors <- c("Age", "Height", "Gender", "family_history_with_overweight", "FAVC",
 #                "CAEC", "SMOKE", "SCC", "CALC", "FAF", "TUE", "CH2O", "NCP", "FCVC")
-predictors <- c("Age", "Height", "Gender", "family_history_with_overweight", "FAVC",
+predictors <- c("Age", "Gender", "family_history_with_overweight", "FAVC",
                 "SMOKE", "SCC", "FAF", "TUE", "CH2O", "NCP", "FCVC")
 
 # Create the predictor matrix X
@@ -277,6 +277,7 @@ samples <- coda.samples(model, variable.names = c("beta0", "beta", "u", "sigma2"
 ```{r}
 print("Summary is - ") 
 summary(samples)
+par(mar = c(2, 2, 2, 2))
 plot(samples, density=FALSE, trace=TRUE, auto.layout = TRUE , ask=FALSE)  # preliminary trace plots and densities
 
 autocorr.plot(samples[1])
@@ -288,7 +289,30 @@ gelman_diag <- gelman.diag(samples, multivariate = FALSE)
 print(gelman_diag)
 ```
 
+```{r}
+# DIC of model
+# built in function rjags
+DIC = dic.samples(model,n.iter=10000)
+```
 
+```{r}
+# WAIC of model
+# need to calculate likelihood for each iteration; see change made in bug file
+samples = coda.samples(model, variable.names=c("likelihood"),
+n.iter=5000)
 
+# combine the likelihood for all chains
+likelihood = rbind(samples[[1]],samples[[2]],samples[[3]])
 
+# vector of posterior mean of likelihood corresponding to each datapoint
+fbar = colMeans(likelihood)
 
+# delete any variables in the scope named var so that var refers to the variance function
+rm(var) 
+
+# columnwise variance of log likelihood
+pW = sum(apply(log(likelihood),2,var))
+
+# this just follows from the definition of WAIC
+WAIC = -2 * sum(log(fbar)) + 2 * pW
+```

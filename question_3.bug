@@ -3,6 +3,7 @@ model {
   for (i in 1:N) {
     BMI_cont[i] ~ dnorm(mu[i], tau_residual)
     mu[i] <- beta0 + inprod(X[i, ], beta[]) + u[group[i]]
+    likelihood[i] <- dnorm(BMI_cont[i],inprod(X[i, ], beta[]),tau_residual)
   }
 
   # Group effects
@@ -14,21 +15,21 @@ model {
   beta0 ~ dnorm(0, 0.001)
 
   
-  beta[1] ~ dexp(0.04)           # Prior for Age (choosing between either Gamma or Exponential) 0.04 lambda highly informative prior
-  beta[2] ~ dnorm(1.7, 0.08)     # Prior for Height (Normal Distribution)  1.7,0.08 for highly informative prior
-  beta[3] ~ dnorm(0, 0.001)         # Prior for Gender (it is a binomial for both equal probs for male and female)
-  beta[4] ~ dnorm(0, 0.001)  # Prior for family_history_with_overweight
-  beta[5] ~ dnorm(0, 0.001)      # Prior for FAVC
+  beta[1] ~ dnorm(0,0.001)           # Prior for Age (choosing between either Gamma or Exponential) 0.04 lambda highly informative prior
+  #beta[2] ~ dnorm(1.7, 0.08)     # Prior for Height (Normal Distribution)  1.7,0.08 for highly informative prior
+  beta[2] ~ dnorm(0, 0.001)         # Prior for Gender (it is a binomial for both equal probs for male and female)
+  beta[3] ~ dnorm(0, 0.001)  # Prior for family_history_with_overweight
+  beta[4] ~ dnorm(0, 0.001)      # Prior for FAVC
   #beta[6] ~ dnorm(0, 0.001)      # Prior for CAEC (it is uninformative, need to do something else)
-  beta[6] ~ dnorm(0, 0.001)          # Prior for SMOKE (it is informative, as no's are more than yes's)
-  beta[7] ~ dnorm(0, 0.001)  # Prior for SCC
+  beta[5] ~ dnorm(0, 0.001)          # Prior for SMOKE (it is informative, as no's are more than yes's)
+  beta[6] ~ dnorm(0, 0.001)  # Prior for SCC
   #beta[9] ~ dnorm(0, 0.001)      # Prior for CALC
-  beta[8] ~ dnorm(0, 0.001)    # Prior for FAF
+  beta[7] ~ dnorm(0, 0.001)    # Prior for FAF
   pi[1:4] ~ ddirch(c(1, 1, 1, 1))  # Dirichlet prior for CALC probabilities
-  beta[9] ~ dnorm(0,0.000001)  # uninformative prior for TUE
-  beta[10] ~ dnorm(0,0.000001)  # uninformative prior for CH2O
-  beta[11] ~ dnorm(0, 0.001)   # Prior for NCP
-  beta[12] ~ dnorm(0, 0.001)     # Prior for FCVC
+  beta[8] ~ dnorm(0,0.000001)  # uninformative prior for TUE
+  beta[9] ~ dnorm(0,0.000001)  # uninformative prior for CH2O
+  beta[10] ~ dnorm(0, 0.001)   # Prior for NCP
+  beta[11] ~ dnorm(0, 0.001)     # Prior for FCVC
 
   # Priors for variances
   #tau_residual <- 1 / sigma2
