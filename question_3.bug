@@ -1,9 +1,9 @@
 model {
   # Likelihood
   for (i in 1:N) {
-    BMI_cont[i] ~ dnorm(mu[i], tau_residual)
+    BMI_squared[i] ~ dnorm(mu[i], tau_residual)
     mu[i] <- beta0 + inprod(X[i, ], beta[]) + u[group[i]]
-    likelihood[i] <- dnorm(BMI_cont[i],inprod(X[i, ], beta[]),tau_residual)
+    likelihood[i] <- dnorm(BMI_squared[i],inprod(X[i, ], beta[]),tau_residual)
   }
 
   # Group effects

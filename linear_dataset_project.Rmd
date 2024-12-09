@@ -155,22 +155,6 @@ for (feature in categorical_features) {
   )
 }
 ```
-```{r}
-# Step 1: Create a Train-Test Split
-set.seed(123) # For reproducibility
-train_ratio <- 0.8
-train_indices <- sample(seq_len(nrow(obesity_data)), size = floor(train_ratio * nrow(obesity_data)))
-
-train_data <- obesity_data[train_indices, ]
-test_data <- obesity_data[-train_indices, ]
-
-# Just to confirm sizes
-cat("Training set size:", nrow(train_data), "\n")
-cat("Test set size:", nrow(test_data), "\n")
-
-```
-
-
 # Data Preperation for JAGS
 ```{r prepare-data-for-jags, echo=TRUE}
 # Load necessary libraries
@@ -188,7 +172,7 @@ obesity_data[categorical_features] <- lapply(obesity_data[categorical_features],
   numeric_values - min(numeric_values, na.rm = TRUE)
 })
 # Step 1: Define columns to be scaled
-columns_to_scale <- setdiff(names(obesity_data), c("Age", "BMI_cont", "BMI_squared", "group", "MTRANS"))
+columns_to_scale <- setdiff(names(obesity_data), c("Age","BMI_squared", "BMI_squared", "group", "MTRANS"))
 #columns_to_scale <- setdiff(names(obesity_data), c("Age","group", "MTRANS"))
 
 # Step 2: Apply min-max scaling to the selected columns
@@ -236,9 +220,6 @@ cat("Number of Groups (J):", J, "\n")
 cat("Number of Predictors (P):", P, "\n")
 
 ```
-
-
-
 ```{r}
 # Prepare data list for JAGS
 jags_data <- list(
@@ -249,6 +230,7 @@ jags_data <- list(
   group = obesity_data$group       # Group variable
 )
 ```
+
 
 
 ```{r}
@@ -263,6 +245,7 @@ inits <- function() {
   )
 }
 ```
+
 
 
 ```{r}
@@ -281,6 +264,8 @@ samples <- coda.samples(model, variable.names = c("beta0", "beta", "u", "sigma2"
 samples <- coda.samples(model, variable.names = c("beta0", "beta", "u", "sigma2", "tau_group","likelihood"), n.iter = 100000)
 ```
 
+
+
 ```{r}
 print("Summary is - ") 
 summary(window(samples, 5000))
@@ -296,11 +281,14 @@ gelman_diag <- gelman.diag(window(samples, 5000), multivariate = FALSE)
 print(gelman_diag)
 ```
 
+
+
 ```{r}
 # DIC of model
 # built in function rjags
 DIC = dic.samples(model,n.iter=5000)
 ```
+
 ```{r}
 # WAIC of model
 # need to calculate likelihood for each iteration; see change made in bug file
