@@ -19,13 +19,10 @@ library(ggplot2) # For visualizations
 library(dplyr)   # For data manipulation
 
 # Define the file path
-file_path <- getwd()
+file_path <- "C:/Users/chopr/Desktop/Statistics Subjects/STAT431-ThisYear/project/dataset/obesity_dataset_linear.csv"
 
 # Read the CSV file into a dataframe
-obesity_data <- read.csv(paste(file_path,"obesity_dataset_linear.csv",sep = "/"))
-
-# drop repeated data
-obesity_data = obesity_data %>% distinct()
+obesity_data <- read.csv(file_path)
 
 # Display the first few rows of the dataframe
 head(obesity_data)
@@ -35,17 +32,12 @@ head(obesity_data)
 ```{r create-bmi-column, echo=TRUE}
 # Load necessary libraries
 library(dplyr)
-
-# Load dataset (assuming it's already loaded as `obesity_data`)
 # Create a new column for BMI
 obesity_data <- obesity_data %>%
   mutate(BMI_cont = Weight / (Height ^ 2))
-
-# Square the BMI_cont column and store it as a new column, BMI_squared
+# Drop the two columns CALC and CAEC
 obesity_data <- obesity_data %>%
-  mutate(BMI_squared = BMI_cont ^ 2)
-
-
+  select(-CALC, -CAEC)
 # Display the first few rows to confirm the new column
 head(obesity_data)
 ```
@@ -53,10 +45,9 @@ head(obesity_data)
 ### Cell 2: Convert Variables into Factors
 ```{r convert-factors, echo=TRUE}
 # Convert appropriate variables into factors
-factor_vars <- c("Gender", "family_history_with_overweight", "FAVC", "CAEC", 
-                 "SMOKE", "SCC", "CALC", "MTRANS", "NObeyesdad")
+factor_vars <- c("Gender", "family_history_with_overweight", "FAVC", 
+                 "SMOKE", "SCC", "MTRANS", "NObeyesdad")
 obesity_data[factor_vars] <- lapply(obesity_data[factor_vars], factor)
-
 # Check structure of the dataset to confirm the changes
 str(obesity_data)
 ```
@@ -152,7 +143,7 @@ for (feature in numeric_features) {
 
 # Boxplots for Categorical Features vs BMI
 categorical_features <- c("Gender", "family_history_with_overweight", "FAVC", 
-                          "CAEC", "SMOKE", "SCC", "CALC", "MTRANS")
+                           "SMOKE", "SCC", "MTRANS")
 
 for (feature in categorical_features) {
   print(
@@ -164,27 +155,41 @@ for (feature in categorical_features) {
   )
 }
 ```
+```{r}
+# Step 1: Create a Train-Test Split
+set.seed(123) # For reproducibility
+train_ratio <- 0.8
+train_indices <- sample(seq_len(nrow(obesity_data)), size = floor(train_ratio * nrow(obesity_data)))
+
+train_data <- obesity_data[train_indices, ]
+test_data <- obesity_data[-train_indices, ]
+
+# Just to confirm sizes
+cat("Training set size:", nrow(train_data), "\n")
+cat("Test set size:", nrow(test_data), "\n")
+
+```
+
+
 # Data Preperation for JAGS
 ```{r prepare-data-for-jags, echo=TRUE}
 # Load necessary libraries
 library(dplyr)
 
+# Square the BMI_cont column and store it as a new column, BMI_squared
+obesity_data <- obesity_data %>%
+  mutate(BMI_squared = BMI_cont ^ 2)
+
 # Step 1: Convert all factors from your dataset to numeric
-categorical_features <- c("Gender", "family_history_with_overweight", "FAVC", 
-                          "CAEC", "SMOKE", "SCC", "CALC", "MTRANS")
-
-
-
+categorical_features <- c("Gender", "family_history_with_overweight", "FAVC","SMOKE", "SCC", "MTRANS")
 # Convert all categorical features to numeric and subtract the min
 obesity_data[categorical_features] <- lapply(obesity_data[categorical_features], function(x) {
   numeric_values <- as.numeric(factor(x))
   numeric_values - min(numeric_values, na.rm = TRUE)
-
 })
-
-
 # Step 1: Define columns to be scaled
-columns_to_scale <- setdiff(names(obesity_data), c("Age", "Height", "BMI_cont", "group", "MTRANS"))
+columns_to_scale <- setdiff(names(obesity_data), c("Age", "BMI_cont", "BMI_squared", "group", "MTRANS"))
+#columns_to_scale <- setdiff(names(obesity_data), c("Age","group", "MTRANS"))
 
 # Step 2: Apply min-max scaling to the selected columns
 obesity_data[columns_to_scale] <- lapply(obesity_data[columns_to_scale], function(x) {
@@ -198,13 +203,10 @@ summary(obesity_data[columns_to_scale])  # Check that all scaled features are be
 obesity_data <- obesity_data %>%
   mutate(
     Age = (Age - mean(Age, na.rm = TRUE)) / sd(Age, na.rm = TRUE),
-    Height = (Height - mean(Height, na.rm = TRUE)) / sd(Height, na.rm = TRUE),
+    #Height = (Height - mean(Height, na.rm = TRUE)) / sd(Height, na.rm = TRUE),
   )
 
 # Step 3: Prepare data for JAGS
-# List of predictors (excluding BMI_cont as it is the target variable)
-
-
 #predictors <- c("Age", "Height", "Gender", "family_history_with_overweight", "FAVC",
 #                "CAEC", "SMOKE", "SCC", "CALC", "FAF", "TUE", "CH2O", "NCP", "FCVC")
 predictors <- c("Age", "Gender", "family_history_with_overweight", "FAVC",
@@ -234,16 +236,20 @@ cat("Number of Groups (J):", J, "\n")
 cat("Number of Predictors (P):", P, "\n")
 
 ```
+
+
+
 ```{r}
 # Prepare data list for JAGS
 jags_data <- list(
   N = N,          # Number of observations
   J = J,  # Number of groups
-  BMI_cont = obesity_data$BMI_cont, # Response variable
+  BMI_cont = obesity_data$BMI_squared, # Response variable
   X = X,                           # Predictor matrix
   group = obesity_data$group       # Group variable
 )
 ```
+
 
 ```{r}
 # Initial values
@@ -254,11 +260,10 @@ inits <- function() {
     u = rep(0, length(unique(obesity_data$group))),
     tau_residual = 0.5, 
     tau_group=1
-    #sigma2 = 1,
-    #tau2 = 1
   )
 }
 ```
+
 
 ```{r}
 library(rjags)
@@ -270,52 +275,47 @@ model <- jags.model("question_3.bug", data = jags_data, inits = inits, n.chains 
 # Burn-in period
 #update(model, 1000)
 
-# Sample from posterior
 samples <- coda.samples(model, variable.names = c("beta0", "beta", "u", "sigma2", "tau_group"), n.iter = 5000)
 ```
 ```{r}
-samples <- coda.samples(model, variable.names = c("beta0", "beta", "u", "sigma2", "tau_group"), n.iter = 10000)
+samples <- coda.samples(model, variable.names = c("beta0", "beta", "u", "sigma2", "tau_group","likelihood"), n.iter = 100000)
 ```
 
 ```{r}
 print("Summary is - ") 
-summary(samples)
+summary(window(samples, 5000))
 par(mar = c(2, 2, 2, 2))
 plot(samples, density=FALSE, trace=TRUE, auto.layout = TRUE , ask=FALSE)  # preliminary trace plots and densities
 
-autocorr.plot(samples[1])
-gelman_results <-gelman.diag(samples, autoburnin=FALSE)
-gelman.plot(samples, autoburnin=FALSE)
+autocorr.plot(window(samples[1], 5000)) # remove burn in
+gelman_results <-gelman.diag(window(samples, 5000), autoburnin=FALSE)
+gelman.plot(window(samples, 5000), autoburnin=FALSE)
 print(gelman_results)
 
-gelman_diag <- gelman.diag(samples, multivariate = FALSE)
+gelman_diag <- gelman.diag(window(samples, 5000), multivariate = FALSE)
 print(gelman_diag)
 ```
 
 ```{r}
 # DIC of model
 # built in function rjags
-DIC = dic.samples(model,n.iter=10000)
+DIC = dic.samples(model,n.iter=5000)
 ```
-
 ```{r}
 # WAIC of model
 # need to calculate likelihood for each iteration; see change made in bug file
-samples = coda.samples(model, variable.names=c("likelihood"),
-n.iter=5000)
-
+samples = coda.samples(model, variable.names=c("likelihood"),n.iter=5000)
 # combine the likelihood for all chains
 likelihood = rbind(samples[[1]],samples[[2]],samples[[3]])
-
 # vector of posterior mean of likelihood corresponding to each datapoint
 fbar = colMeans(likelihood)
-
 # delete any variables in the scope named var so that var refers to the variance function
 rm(var) 
-
 # columnwise variance of log likelihood
 pW = sum(apply(log(likelihood),2,var))
-
 # this just follows from the definition of WAIC
 WAIC = -2 * sum(log(fbar)) + 2 * pW
 ```
+
+
+
