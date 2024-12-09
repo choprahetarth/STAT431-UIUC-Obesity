@@ -24,6 +24,9 @@ file_path <- getwd()
 # Read the CSV file into a dataframe
 obesity_data <- read.csv(paste(file_path,"obesity_dataset_linear.csv",sep = "/"))
 
+# drop repeated data
+obesity_data = obesity_data %>% distinct()
+
 # Display the first few rows of the dataframe
 head(obesity_data)
 ```
