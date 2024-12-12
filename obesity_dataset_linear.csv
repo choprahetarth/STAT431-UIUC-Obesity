@@ -46,7 +46,6 @@ Age,Gender,Height,Weight,CALC,FAVC,FCVC,NCP,SCC,SMOKE,CH2O,family_history_with_o
 21,Male,1.81,80,no,no,1,3,no,no,2,no,2,0,no,Public_Transportation,Normal_Weight
 21,Female,1.53,65,no,no,2,3,no,no,1,yes,0,1,Sometimes,Public_Transportation,Overweight_Level_II
 21,Male,1.82,72,Sometimes,yes,1,3,no,no,3,yes,2,0,Frequently,Public_Transportation,Normal_Weight
-21,Male,1.75,72,Sometimes,yes,1,3,no,no,3,yes,2,0,Frequently,Public_Transportation,Normal_Weight
 20,Female,1.66,60,Sometimes,no,3,3,no,no,2,yes,1,0,Sometimes,Walking,Normal_Weight
 21,Female,1.55,50,Sometimes,yes,2,3,no,no,2,no,0,0,Sometimes,Public_Transportation,Normal_Weight
 21,Female,1.61,54.5,Sometimes,yes,3,3,no,no,3,yes,0,1,Sometimes,Walking,Normal_Weight
@@ -97,14 +96,12 @@ Age,Gender,Height,Weight,CALC,FAVC,FCVC,NCP,SCC,SMOKE,CH2O,family_history_with_o
 26,Male,1.7,70,Frequently,no,3,1,no,no,2,yes,2,0,Frequently,Public_Transportation,Normal_Weight
 23,Female,1.66,60,Sometimes,no,2,3,no,no,2,yes,3,0,Sometimes,Public_Transportation,Normal_Weight
 21,Female,1.52,42,Sometimes,no,3,1,no,no,1,no,0,0,Frequently,Public_Transportation,Insufficient_Weight
-21,Female,1.52,42,Sometimes,no,3,1,no,no,1,no,0,0,Frequently,Public_Transportation,Insufficient_Weight
 23,Male,1.72,70,Frequently,no,2,3,no,no,2,no,3,1,Sometimes,Public_Transportation,Normal_Weight
 21,Female,1.69,63,Sometimes,yes,3,1,no,no,1,no,0,0,Sometimes,Public_Transportation,Normal_Weight
 22,Male,1.7,66.4,no,no,2,3,no,no,2,yes,0,0,Frequently,Public_Transportation,Normal_Weight
 21,Female,1.55,57,Sometimes,yes,2,4,yes,no,2,no,2,0,Frequently,Automobile,Normal_Weight
 22,Female,1.65,58,Sometimes,yes,3,4,no,no,2,yes,1,0,Frequently,Public_Transportation,Normal_Weight
 38,Female,1.56,80,Sometimes,yes,2,3,no,no,2,yes,0,0,Sometimes,Automobile,Obesity_Type_I
-25,Female,1.57,55,Sometimes,yes,2,1,no,no,2,no,2,0,Sometimes,Public_Transportation,Normal_Weight
 25,Female,1.57,55,Sometimes,yes,2,1,no,no,2,no,2,0,Sometimes,Public_Transportation,Normal_Weight
 22,Male,1.88,90,Sometimes,yes,2,3,no,no,1,yes,0,1,Always,Automobile,Overweight_Level_I
 22,Male,1.75,95,no,no,2,3,no,no,3,yes,3,2,Sometimes,Walking,Obesity_Type_I
@@ -117,7 +114,6 @@ Age,Gender,Height,Weight,CALC,FAVC,FCVC,NCP,SCC,SMOKE,CH2O,family_history_with_o
 17,Female,1.75,57,no,yes,3,3,no,no,2,yes,0,1,Frequently,Public_Transportation,Normal_Weight
 15,Female,1.65,86,no,yes,3,3,no,no,1,yes,3,2,Sometimes,Walking,Obesity_Type_I
 17,Female,1.7,85,no,no,2,3,no,no,2,yes,1,1,Frequently,Public_Transportation,Overweight_Level_II
-23,Male,1.62,53,Sometimes,yes,2,3,no,no,2,yes,1,1,Sometimes,Public_Transportation,Normal_Weight
 19,Female,1.63,76,Sometimes,no,3,3,no,yes,3,yes,2,1,Frequently,Automobile,Overweight_Level_II
 23,Female,1.67,75,no,yes,2,3,no,yes,2,yes,0,2,Frequently,Walking,Overweight_Level_I
 23,Male,1.87,95,Frequently,yes,1,3,no,no,2,yes,0,2,Frequently,Public_Transportation,Overweight_Level_II
@@ -173,17 +169,14 @@ Age,Gender,Height,Weight,CALC,FAVC,FCVC,NCP,SCC,SMOKE,CH2O,family_history_with_o
 18,Male,1.6,58,Sometimes,yes,2,3,no,no,2,yes,1,0,Frequently,Public_Transportation,Normal_Weight
 23,Female,1.65,59,Sometimes,no,3,1,no,no,2,no,1,2,Sometimes,Public_Transportation,Normal_Weight
 18,Male,1.74,64,no,no,3,3,yes,no,2,no,0,1,Sometimes,Public_Transportation,Normal_Weight
-21,Male,1.62,70,Sometimes,yes,2,1,no,no,3,no,1,0,no,Public_Transportation,Overweight_Level_I
 38,Female,1.64,59.8,no,yes,2,3,no,no,2,yes,2,0,Sometimes,Public_Transportation,Normal_Weight
 18,Female,1.57,48,no,yes,3,1,no,no,1,yes,1,0,Always,Public_Transportation,Normal_Weight
 22,Male,1.84,84,Sometimes,yes,3,3,yes,no,2,yes,3,0,Frequently,Public_Transportation,Normal_Weight
 26,Male,1.91,84,Frequently,yes,3,3,no,yes,2,yes,2,2,Frequently,Public_Transportation,Normal_Weight
-21,Male,1.62,70,Sometimes,yes,2,1,no,no,3,no,1,0,no,Public_Transportation,Overweight_Level_I
 18,Female,1.58,48,no,yes,2,3,no,no,2,no,1,0,Sometimes,Public_Transportation,Normal_Weight
 23,Female,1.68,67,Sometimes,yes,2,3,no,no,1,yes,0,0,Frequently,Public_Transportation,Normal_Weight
 22,Female,1.68,52,no,yes,3,3,no,no,2,no,0,1,Frequently,Public_Transportation,Insufficient_Weight
 23,Female,1.48,60,Sometimes,yes,2,1,no,yes,1,yes,0,0,Sometimes,Public_Transportation,Overweight_Level_II
-21,Male,1.62,70,Sometimes,yes,2,1,no,no,3,no,1,0,no,Public_Transportation,Overweight_Level_I
 31,Female,1.62,68,Sometimes,no,3,3,no,no,2,no,1,0,Sometimes,Automobile,Overweight_Level_I
 39,Male,1.78,96,Frequently,no,2,3,no,no,3,yes,1,0,Sometimes,Automobile,Obesity_Type_I
 25,Male,1.78,98,no,no,2,3,no,no,3,yes,3,2,Sometimes,Public_Transportation,Obesity_Type_I
@@ -207,7 +200,6 @@ Age,Gender,Height,Weight,CALC,FAVC,FCVC,NCP,SCC,SMOKE,CH2O,family_history_with_o
 23,Female,1.6,78,Frequently,yes,2,1,no,yes,2,yes,1,0,Sometimes,Public_Transportation,Obesity_Type_I
 19,Male,1.75,100,no,yes,2,3,no,no,2,yes,2,0,Frequently,Public_Transportation,Obesity_Type_I
 30,Male,1.75,73,Sometimes,no,2,3,yes,no,2,yes,1,0,no,Walking,Normal_Weight
-22,Female,1.69,65,Sometimes,yes,2,3,no,no,2,yes,1,1,Sometimes,Public_Transportation,Normal_Weight
 22,Female,1.69,65,Sometimes,yes,2,3,no,no,2,yes,1,1,Sometimes,Public_Transportation,Normal_Weight
 20,Male,1.8,114,no,yes,2,3,no,no,2,yes,0,1,Frequently,Public_Transportation,Obesity_Type_II
 21,Female,1.63,51,no,yes,2,1,no,no,1,no,1,1,Sometimes,Public_Transportation,Normal_Weight
@@ -308,7 +300,6 @@ Age,Gender,Height,Weight,CALC,FAVC,FCVC,NCP,SCC,SMOKE,CH2O,family_history_with_o
 24,Female,1.56,60,Sometimes,yes,1,3,no,no,2,yes,0,2,Always,Public_Transportation,Normal_Weight
 23,Female,1.59,48,Sometimes,yes,2,1,no,no,1,yes,0,2,Frequently,Public_Transportation,Normal_Weight
 20,Male,1.8,75,Sometimes,yes,3,4,no,no,3,no,2,0,Always,Public_Transportation,Normal_Weight
-16,Female,1.66,58,no,no,2,1,no,no,1,no,0,1,Sometimes,Walking,Normal_Weight
 17,Male,1.79,57,no,yes,2,4,no,no,2,yes,2,1,Frequently,Public_Transportation,Insufficient_Weight
 17,Male,1.72,62,no,yes,2,3,no,no,2,no,3,1,Always,Public_Transportation,Normal_Weight
 16,Female,1.6,57,no,yes,3,3,no,no,1,no,3,0,Sometimes,Public_Transportation,Normal_Weight
@@ -420,7 +411,6 @@ Age,Gender,Height,Weight,CALC,FAVC,FCVC,NCP,SCC,SMOKE,CH2O,family_history_with_o
 18,Male,1.7,90,Sometimes,yes,3,3,no,no,2,no,2,0,Sometimes,Public_Transportation,Obesity_Type_I
 29,Male,1.62,89,Sometimes,yes,1,3,no,no,1,yes,0,0,Sometimes,Public_Transportation,Obesity_Type_I
 18,Male,1.85,60,Sometimes,yes,3,4,yes,no,2,yes,2,0,Sometimes,Automobile,Insufficient_Weight
-18,Male,1.84,60,Sometimes,yes,3,4,yes,no,2,yes,2,0,Sometimes,Automobile,Insufficient_Weight
 19,Male,1.75,58,Sometimes,yes,2,3,no,no,2,no,2,0,Sometimes,Bike,Normal_Weight
 33,Male,1.85,93,Sometimes,yes,2,3,no,no,1,yes,1,1,Sometimes,Walking,Overweight_Level_II
 33,Male,1.74,76,Sometimes,no,2,3,no,no,1,no,0,2,Sometimes,Walking,Overweight_Level_I
@@ -450,7 +440,6 @@ Age,Gender,Height,Weight,CALC,FAVC,FCVC,NCP,SCC,SMOKE,CH2O,family_history_with_o
 24,Female,1.6,100.5,Sometimes,yes,3,1,no,no,1,yes,0,2,Sometimes,Public_Transportation,Obesity_Type_II
 18,Female,1.63,63,Sometimes,yes,1,3,no,no,2,yes,2,2,Sometimes,Public_Transportation,Normal_Weight
 19,Male,1.71,71,Sometimes,yes,3,3,no,no,2,no,1,1,Sometimes,Public_Transportation,Normal_Weight
-19,Male,1.7,65,no,no,2,3,no,no,2,yes,1,0,Frequently,Public_Transportation,Normal_Weight
 23,Male,1.75,69,Sometimes,no,3,3,no,no,2,no,2,1,no,Automobile,Normal_Weight
 18,Female,1.62,50,Sometimes,yes,3,3,no,no,1,no,0,0,Sometimes,Automobile,Normal_Weight
 20,Female,1.68,68,no,yes,3,1,no,no,1,no,1,0,Sometimes,Public_Transportation,Normal_Weight
@@ -459,13 +448,11 @@ Age,Gender,Height,Weight,CALC,FAVC,FCVC,NCP,SCC,SMOKE,CH2O,family_history_with_o
 19,Female,1.5,45,Sometimes,yes,2,3,no,no,1,no,0,0,Sometimes,Public_Transportation,Normal_Weight
 19,Male,1.69,60,Sometimes,yes,2,3,no,no,1,no,1,1,Always,Public_Transportation,Normal_Weight
 19,Male,1.76,79,Frequently,yes,2,3,no,no,3,yes,1,2,Frequently,Public_Transportation,Overweight_Level_I
-18,Female,1.62,55,no,yes,2,3,no,no,1,yes,1,1,Frequently,Public_Transportation,Normal_Weight
 21,Male,1.71,100,no,yes,2,1,no,no,2,yes,0,2,Sometimes,Public_Transportation,Obesity_Type_I
 27,Male,1.72,88,Sometimes,yes,2,1,no,no,2,yes,0,0,Always,Automobile,Overweight_Level_II
 17,Male,1.8,68,Sometimes,no,2,3,no,no,1,yes,2,1,Sometimes,Public_Transportation,Normal_Weight
 18,Male,1.93,86,Sometimes,no,3,4,no,no,2,no,2,0,Always,Walking,Normal_Weight
 18,Female,1.6,51,Sometimes,yes,2,3,no,no,1,yes,1,1,Frequently,Public_Transportation,Normal_Weight
-22,Male,1.74,75,no,yes,3,3,no,no,1,yes,1,0,Frequently,Automobile,Normal_Weight
 22,Male,1.74,75,no,yes,3,3,no,no,1,yes,1,0,Frequently,Automobile,Normal_Weight
 20,Female,1.62,45,Sometimes,yes,3,3,no,no,1,no,1,0,Frequently,Public_Transportation,Insufficient_Weight
 19,Female,1.54,42,no,yes,3,1,no,no,2,no,0,1,Sometimes,Public_Transportation,Insufficient_Weight
@@ -495,7 +482,6 @@ Age,Gender,Height,Weight,CALC,FAVC,FCVC,NCP,SCC,SMOKE,CH2O,family_history_with_o
 20,Male,1.8,65,Sometimes,yes,2,3,no,no,1,no,2,0,Frequently,Motorbike,Normal_Weight
 18,Female,1.67,66,Sometimes,yes,3,3,no,no,2,no,0,0,Sometimes,Public_Transportation,Normal_Weight
 19,Male,1.8,60,no,yes,3,1,yes,no,1,yes,0,0,Always,Motorbike,Normal_Weight
-18,Male,1.72,53,Sometimes,yes,2,3,no,no,2,yes,0,2,Sometimes,Public_Transportation,Insufficient_Weight
 20,Male,1.56,45,Sometimes,no,2,3,no,no,2,no,1,1,Sometimes,Public_Transportation,Normal_Weight
 25.196214,Female,1.686306,104.572712,Sometimes,yes,3,3,no,no,1.152736,yes,0.319156,1,Sometimes,Public_Transportation,Obesity_Type_III
 18.503343,Female,1.683124,126.67378,Sometimes,yes,3,3,no,no,1.115967,yes,1.541072,1,Sometimes,Public_Transportation,Obesity_Type_III
@@ -526,7 +512,6 @@ Age,Gender,Height,Weight,CALC,FAVC,FCVC,NCP,SCC,SMOKE,CH2O,family_history_with_o
 20.225396,Female,1.550648,44.641796,Sometimes,yes,3,2.857787,no,no,1,no,0.754646,0,Frequently,Public_Transportation,Insufficient_Weight
 19.86997,Female,1.520997,42,Sometimes,yes,3,1,no,no,1.527036,no,0,0.860497,Frequently,Public_Transportation,Insufficient_Weight
 20.147114,Female,1.528011,42,Sometimes,yes,3,1,no,no,1.322669,no,0,0.478676,Frequently,Public_Transportation,Insufficient_Weight
-21,Female,1.52,42,Sometimes,yes,3,1,no,no,1,no,0,0,Frequently,Public_Transportation,Insufficient_Weight
 21.996523,Female,1.733263,50.890363,Sometimes,no,3,3.765526,no,no,1.656082,no,0.42777,0.555967,Frequently,Public_Transportation,Insufficient_Weight
 21.376426,Female,1.722527,50.833029,Sometimes,no,3,3.285167,no,no,1.569082,no,0.545931,0.469735,Frequently,Public_Transportation,Insufficient_Weight
 19.724106,Female,1.734832,50,Sometimes,no,1.123939,4,no,no,1,no,1.303976,0.371941,Frequently,Public_Transportation,Insufficient_Weight
@@ -636,7 +621,6 @@ Age,Gender,Height,Weight,CALC,FAVC,FCVC,NCP,SCC,SMOKE,CH2O,family_history_with_o
 23,Female,1.710129,50.079991,no,yes,2,3,no,no,2.685842,yes,0.373186,2,Frequently,Public_Transportation,Insufficient_Weight
 18,Female,1.704193,50.631889,Sometimes,yes,2,3,no,no,2,no,0,1.525597,Sometimes,Public_Transportation,Insufficient_Weight
 19.054008,Female,1.556611,39.695295,Sometimes,yes,1.889199,2.217651,no,no,2.013605,no,2.075293,1.683261,Sometimes,Public_Transportation,Insufficient_Weight
-18,Male,1.845399,60,no,yes,3,4,no,no,2,yes,2,0,Sometimes,Automobile,Insufficient_Weight
 17.491272,Male,1.834637,59.990861,no,yes,2.943749,4,no,no,2,yes,2,0.128895,Sometimes,Automobile,Insufficient_Weight
 18,Male,1.721854,52.514302,Sometimes,yes,2.33998,3,no,no,2,yes,0.027433,1.884138,Sometimes,Public_Transportation,Insufficient_Weight
 20.172661,Female,1.605521,44.661461,Sometimes,no,3,2.893778,yes,no,1,no,0.769726,0,Frequently,Public_Transportation,Insufficient_Weight
@@ -658,11 +642,9 @@ Age,Gender,Height,Weight,CALC,FAVC,FCVC,NCP,SCC,SMOKE,CH2O,family_history_with_o
 19,Female,1.559567,42.12617,no,yes,3,1.989398,no,no,2.241607,no,0.206025,0.284453,Sometimes,Public_Transportation,Insufficient_Weight
 19.052833,Female,1.546551,42.069992,no,yes,3,1.735493,no,no,2.318736,no,1.193486,0.74568,Sometimes,Public_Transportation,Insufficient_Weight
 19.59904,Female,1.566501,41.706283,Sometimes,yes,2.967853,1,no,no,1.131185,no,0,0.504176,Frequently,Public_Transportation,Insufficient_Weight
-21,Female,1.52,42,Sometimes,yes,3,1,no,no,1,no,0,0,Frequently,Public_Transportation,Insufficient_Weight
 19.673262,Female,1.599486,44.810751,Sometimes,no,3,2.974568,yes,no,1.145761,no,0.87967,0,Frequently,Public_Transportation,Insufficient_Weight
 20.244359,Female,1.559186,41.952805,Sometimes,yes,2.619835,1,no,no,1.198883,no,0,0.751212,Frequently,Public_Transportation,Insufficient_Weight
 20.552695,Female,1.523426,42,Sometimes,yes,3,1,no,no,1.185062,no,0,0.076654,Frequently,Public_Transportation,Insufficient_Weight
-21,Female,1.52,42,Sometimes,yes,3,1,no,no,1,no,0,0,Frequently,Public_Transportation,Insufficient_Weight
 21.997683,Female,1.689441,51.107925,no,yes,3,3.715118,no,no,1.774576,yes,0.10297,0.646423,Frequently,Public_Transportation,Insufficient_Weight
 21.274628,Female,1.737453,50.479039,no,yes,3,3.489918,no,no,1.326694,yes,0.791929,0.128394,Frequently,Public_Transportation,Insufficient_Weight
 18.909439,Female,1.732096,50,Sometimes,yes,1.053534,3.378859,no,no,1,no,1.853425,0.861809,Sometimes,Public_Transportation,Insufficient_Weight
@@ -762,8 +744,6 @@ Age,Gender,Height,Weight,CALC,FAVC,FCVC,NCP,SCC,SMOKE,CH2O,family_history_with_o
 36.769646,Female,1.55,62.337721,Sometimes,yes,2.392665,3,no,no,2.951056,yes,0,0.369134,Sometimes,Automobile,Overweight_Level_I
 21.868932,Female,1.731261,78.175706,Sometimes,yes,2.577427,1,no,no,2,yes,2.287423,0,Sometimes,Public_Transportation,Overweight_Level_I
 22.549208,Male,1.629194,70,Sometimes,yes,2,1,no,no,2.803311,no,0.245354,0,no,Public_Transportation,Overweight_Level_I
-21,Male,1.62,70,Sometimes,yes,2,1,no,no,3,no,1,0,no,Public_Transportation,Overweight_Level_I
-21,Male,1.62,70,Sometimes,yes,2,1,no,no,3,no,1,0,no,Public_Transportation,Overweight_Level_I
 30.958957,Female,1.633491,68.803694,Sometimes,yes,2.052152,3,no,no,1.972074,yes,0.228307,0,Sometimes,Automobile,Overweight_Level_I
 21.017383,Male,1.752391,79.109637,Sometimes,yes,3,1,no,no,2,yes,2.57223,0,Sometimes,Automobile,Overweight_Level_I
 19.623574,Male,1.818226,85.833029,Sometimes,yes,2.954996,3.714833,no,no,2.430918,yes,2.545931,0.469735,Sometimes,Public_Transportation,Overweight_Level_I
@@ -823,17 +803,11 @@ Age,Gender,Height,Weight,CALC,FAVC,FCVC,NCP,SCC,SMOKE,CH2O,family_history_with_o
 32.501143,Female,1.675979,74.959747,Sometimes,yes,2.291846,1.555557,no,no,1,yes,0,0.388271,Sometimes,Automobile,Overweight_Level_I
 21.938831,Female,1.611239,67.939653,Sometimes,yes,1.906194,3.987707,no,no,2.597746,yes,1.922234,1.376124,Sometimes,Public_Transportation,Overweight_Level_I
 21.909534,Female,1.611356,68.06609,Sometimes,yes,1.834155,3.995957,no,no,2.632871,yes,1.236114,1.980875,Sometimes,Public_Transportation,Overweight_Level_I
-21,Male,1.62,70,Sometimes,yes,2,1,no,no,3,no,1,0,no,Public_Transportation,Overweight_Level_I
 37.455752,Female,1.508908,63.183846,Sometimes,yes,2.048582,1.047197,no,no,2,yes,0.15136,0.22596,Sometimes,Automobile,Overweight_Level_I
 40,Female,1.561109,62.871794,Sometimes,yes,2.948248,3,no,no,2.429911,yes,0.11964,0.360193,Sometimes,Automobile,Overweight_Level_I
 38.943282,Female,1.554728,63.011645,Sometimes,yes,2.869436,3,no,no,2.972426,yes,2.16079,0.305954,Sometimes,Automobile,Overweight_Level_I
 21.987341,Female,1.730182,78.55444,Sometimes,yes,2.293705,1,no,no,2,yes,2.063943,0,Sometimes,Public_Transportation,Overweight_Level_I
 21.198217,Female,1.743841,78.88036,Sometimes,yes,2.510583,1,no,no,2,yes,2.119682,0,Sometimes,Public_Transportation,Overweight_Level_I
-21,Male,1.62,70,Sometimes,yes,2,1,no,no,3,no,1,0,no,Public_Transportation,Overweight_Level_I
-21,Male,1.62,70,Sometimes,yes,2,1,no,no,3,no,1,0,no,Public_Transportation,Overweight_Level_I
-21,Male,1.62,70,Sometimes,yes,2,1,no,no,3,no,1,0,no,Public_Transportation,Overweight_Level_I
-21,Male,1.62,70,Sometimes,yes,2,1,no,no,3,no,1,0,no,Public_Transportation,Overweight_Level_I
-21,Male,1.62,70,Sometimes,yes,2,1,no,no,3,no,1,0,no,Public_Transportation,Overweight_Level_I
 29.32038,Female,1.642506,69.906708,Sometimes,yes,2.366949,3,no,no,1.926577,yes,1.581242,0,Sometimes,Automobile,Overweight_Level_I
 31.255587,Female,1.69308,71.927379,Sometimes,yes,2.615788,3,no,no,1.771781,yes,0.759422,0.686529,Sometimes,Automobile,Overweight_Level_I
 22.851773,Male,1.752115,79.414603,Sometimes,yes,3,1,no,no,2,yes,2.315983,0,Sometimes,Public_Transportation,Overweight_Level_I
@@ -920,9 +894,6 @@ Age,Gender,Height,Weight,CALC,FAVC,FCVC,NCP,SCC,SMOKE,CH2O,family_history_with_o
 21.996118,Female,1.730199,78.997062,Sometimes,yes,2.277077,1,no,no,2,yes,1.061743,0,Sometimes,Public_Transportation,Overweight_Level_I
 21.951309,Female,1.730167,78.429312,Sometimes,yes,2.138334,1,no,no,2,yes,2.269058,0,Sometimes,Public_Transportation,Overweight_Level_I
 22.018228,Male,1.627396,70,Sometimes,yes,2,1,no,no,2.976177,no,0.780117,0,no,Public_Transportation,Overweight_Level_I
-21,Male,1.62,70,Sometimes,yes,2,1,no,no,3,no,1,0,no,Public_Transportation,Overweight_Level_I
-21,Male,1.62,70,Sometimes,yes,2,1,no,no,3,no,1,0,no,Public_Transportation,Overweight_Level_I
-21,Male,1.62,70,Sometimes,yes,2,1,no,no,3,no,1,0,no,Public_Transportation,Overweight_Level_I
 29.934465,Female,1.638744,69.242354,Sometimes,yes,2.029634,3,no,no,1.827515,yes,0.480206,0,Sometimes,Automobile,Overweight_Level_I
 31.166572,Female,1.680858,71.81338,Sometimes,yes,2.048216,3,no,no,1.305816,yes,0.170452,0.276806,Sometimes,Automobile,Overweight_Level_I
 20.534606,Female,1.758372,79.469513,Sometimes,yes,2.8557,1,no,no,2.663861,yes,2.762711,0.783336,Sometimes,Public_Transportation,Overweight_Level_I

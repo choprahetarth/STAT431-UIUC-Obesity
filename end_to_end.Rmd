@@ -2,15 +2,606 @@
 title: "End_to_end"
 author: "hetarth"
 date: "2024-12-09"
-output: html_document
+output:
+  html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+# Duplicates have been found out and removed BeforeHand
 
+## R Markdown
+# Question 1- Uninformative Beta values; all normal
+
+
+```{r}
+##############################################################
+# Full R Script: 
+# 1. Load and Prepare Data 
+# 2. Split into Train and Test 
+# 3. Run Bayesian Model (JAGS) on the Train Set 
+# 4. Predict on Test Set and Compute R²
+##############################################################
+
+# Clear workspace
+rm(list=ls())
+
+##############################################################
+# Load required libraries
+##############################################################
+library(ggplot2)     # For visualizations
+library(dplyr)        # For data manipulation
+library(rjags)        # For JAGS interface
+library(coda)         # For MCMC diagnostics
+
+##############################################################
+# Read the data
+##############################################################
+file_path <- "C:/Users/chopr/Desktop/Statistics Subjects/STAT431-ThisYear/project/dataset/obesity_dataset_linear.csv"
+obesity_data <- read.csv(file_path)
+
+# Display the first few rows of the dataframe
+head(obesity_data)
+
+##############################################################
+# Create BMI column (BMI = Weight / Height^2)
+##############################################################
+obesity_data <- obesity_data %>%
+  mutate(BMI_cont = Weight / (Height ^ 2)) %>%
+  mutate(BMI_squared = BMI_cont ^ 2) %>%
+  select(-CALC, -CAEC) # Dropping specified columns
+
+head(obesity_data)
+
+##############################################################
+# Convert select variables into factors
+##############################################################
+factor_vars <- c("Gender", "family_history_with_overweight", "FAVC", 
+                 "SMOKE", "SCC", "MTRANS", "NObeyesdad")
+obesity_data[factor_vars] <- lapply(obesity_data[factor_vars], factor)
+
+str(obesity_data)
+
+# Numeric and categorical variable distribution checks
+numeric_vars <- sapply(obesity_data, is.numeric)
+categorical_vars <- sapply(obesity_data, is.factor)
+
+numeric_var_names <- names(obesity_data)[numeric_vars]
+categorical_var_names <- names(obesity_data)[categorical_vars]
+
+##############################################################
+# Drop Weight, NObeyesdad columns as previously done
+##############################################################
+obesity_data <- obesity_data %>%
+  select(-Weight, -NObeyesdad)
+
+head(obesity_data)
+
+
+##############################################################
+# Data Preparation for JAGS
+# Steps:
+# 1. Convert categorical features to numeric (0-based)
+# 2. Scale and standardize numeric features as before
+# 3. Create predictor matrix X
+##############################################################
+
+# Convert categorical features to numeric (0-based)
+categorical_features <- c("Gender", "family_history_with_overweight", "FAVC","SMOKE", "SCC", "MTRANS")
+obesity_data[categorical_features] <- lapply(obesity_data[categorical_features], function(x) {
+  numeric_values <- as.numeric(factor(x))
+  numeric_values - min(numeric_values, na.rm = TRUE)
+})
+
+# Identify columns to scale (excluding Age, BMI_cont, group, MTRANS because group/MTRANS used for grouping)
+columns_to_scale <- setdiff(names(obesity_data), c("Age", "BMI_squared", "group", "MTRANS"))
+
+# Min-max scaling for selected columns
+obesity_data[columns_to_scale] <- lapply(obesity_data[columns_to_scale], function(x) {
+  (x - min(x, na.rm = TRUE)) / (max(x, na.rm = TRUE) - min(x, na.rm = TRUE))
+})
+
+# Standardize Age
+obesity_data <- obesity_data %>%
+  mutate(
+    Age = (Age - mean(Age, na.rm = TRUE)) / sd(Age, na.rm = TRUE)
+  )
+
+# Define predictors
+predictors <- c("Age", "Gender", "family_history_with_overweight")
+
+X <- as.matrix(obesity_data[, predictors])
+
+# Create a group variable from MTRANS
+obesity_data$group <- obesity_data$MTRANS  
+obesity_data$group <- as.integer(as.factor(obesity_data$group))
+
+# Final structure
+N <- nrow(obesity_data)
+P <- ncol(X)
+J <- length(unique(obesity_data$group))
+
+str(obesity_data)
+cat("Dimensions of X:", dim(X), "\n")
+cat("Number of Observations (N):", N, "\n")
+cat("Number of Groups (J):", J, "\n")
+cat("Number of Predictors (P):", P, "\n")
+
+##############################################################
+# Train-Test Split
+##############################################################
+set.seed(123) # For reproducibility
+train_index <- sample(1:N, size = floor(0.7*N), replace = FALSE)
+test_index <- setdiff(1:N, train_index)
+
+obesity_train <- obesity_data[train_index, ]
+obesity_test <- obesity_data[test_index, ]
+
+X_train <- X[train_index, ]
+X_test <- X[test_index, ]
+
+N_train <- nrow(X_train)
+N_test <- nrow(X_test)
+
+J_train <- length(unique(obesity_train$group))
+# Note: It's possible that test set doesn't have all groups present in training.
+# For simplicity, we assume all groups in test are also in train.
+# If not, you'd have to handle groups not seen in training (set u[group] = 0 or similar).
+
+##############################################################
+# Prepare Data for JAGS from the Training Set
+##############################################################
+jags_data <- list(
+  N = N_train,
+  J = J_train,
+  BMI_squared = obesity_train$BMI_squared,
+  X = X_train,
+  group = obesity_train$group
+)
+
+##############################################################
+# JAGS Model File (question_3.bug)
+# We'll write it here as a temporary file
+##############################################################
+model_string <- "
+model {
+  # Likelihood
+  for (i in 1:N) {
+    BMI_squared[i] ~ dnorm(mu[i], tau_residual)
+    mu[i] <- beta0 + inprod(X[i, ], beta[]) + u[group[i]]
+    # For WAIC calculation
+    likelihood[i] <- dnorm(BMI_squared[i], mu[i], tau_residual)
+  }
+
+  # Group effects
+  for (j in 1:J) {
+    u[j] ~ dnorm(0, tau_group)
+  }
+
+  # Priors for coefficients
+  beta0 ~ dnorm(25, 0.001)
+
+  beta[1] ~ dexp(0.01)      # Age
+  beta[2] ~ dnorm(0, 0.001) # Gender
+  beta[3] ~ dnorm(0, 0.001) # family_history_with_overweight
+
+  # Priors for variance
+  tau_residual ~ dgamma(0.01, 0.01)
+  sigma2 <- 1 / tau_residual
+
+  tau_group ~ dexp(1)
+}
+"
+
+# Write model to a temporary file
+model_file <- tempfile(fileext=".bug")
+cat(model_string, file = model_file)
+
+##############################################################
+# Initial values
+##############################################################
+inits <- function() {
+  list(
+    beta0 = 0,
+    beta = rep(0, P),
+    u = rep(0, J_train),
+    tau_residual = 0.5,
+    tau_group = 1
+  )
+}
+
+##############################################################
+# Run the model on the training data
+##############################################################
+model <- jags.model(model_file, data = jags_data, inits = inits, n.chains = 3, n.adapt = 1000)
+update(model, 4000) # Burn-in
+
+samples <- coda.samples(model, variable.names = c("beta0", "beta", "u", "sigma2", "tau_group"), n.iter = 100000)
+
+##############################################################
+# Posterior summaries and convergence checks
+##############################################################
+print("Summary of posterior (after burn-in):")
+summary(samples)
+
+par(mar = c(2,2,2,2))
+plot(samples, density=FALSE, trace=TRUE, auto.layout = TRUE , ask=FALSE)
+
+autocorr.plot(samples[[1]])
+gelman_results <- gelman.diag(samples, autoburnin=FALSE)
+gelman.plot(samples, autoburnin=FALSE)
+print(gelman_results)
+
+##############################################################
+# WAIC Calculation
+# We need to sample the 'likelihood' node from the model
+##############################################################
+samples_likelihood <- coda.samples(model, variable.names=c("likelihood"), n.iter=10000)
+
+# Combine likelihood for all chains
+likelihood_chains <- do.call(rbind, samples_likelihood)
+
+# fbar: posterior mean of likelihood per datapoint
+fbar <- colMeans(likelihood_chains)
+
+# Remove any variable named 'var' to allow 'var' function usage
+#rm(var)
+
+# Column-wise variance of log(likelihood)
+pW <- sum(apply(log(likelihood_chains), 2, var))
+
+# WAIC
+WAIC <- -2 * sum(log(fbar)) + 2 * pW
+#cat("WAIC:", WAIC, "\n")
+print("WAIC:")
+print(WAIC)
+
+
+##############################################################
+# Extract posterior means for prediction on TEST set
+##############################################################
+posterior_mat <- as.matrix(samples)
+beta0_post <- posterior_mat[,"beta0"]
+beta_post <- posterior_mat[,grep("^beta\\[", colnames(posterior_mat))]
+u_indices <- grep("^u\\[", colnames(posterior_mat))
+u_post <- posterior_mat[, u_indices]
+
+# Posterior means
+beta0_hat <- mean(beta0_post)
+beta_hat <- apply(beta_post, 2, mean)
+u_hat <- apply(u_post, 2, mean)
+
+##############################################################
+# Predict on test set
+##############################################################
+# Note: test groups must align with train groups indexing
+# If some test group doesn't appear in training, it will be an issue. 
+# Assuming all test groups appear in train:
+group_test <- obesity_test$group
+y_test <- obesity_test$BMI_squared
+
+y_pred <- beta0_hat + X_test %*% beta_hat + u_hat[group_test]
+
+y_pred <- as.numeric(y_pred)
+
+##############################################################
+# Compute R² on test set
+##############################################################
+# R² = 1 - SS_res/SS_tot
+SS_res <- sum((y_test - y_pred)^2)
+SS_tot <- sum((y_test - mean(y_test))^2)
+R2_test <- 1 - (SS_res/SS_tot)
+
+print("R² on Test Set:")
+print(R2_test)
+
+##############################################################
+# DONE
+##############################################################
+
+```
+# Question 2: Non Informative Priors
+
+```{r}
+##############################################################
+# Full R Script: 
+# 1. Load and Prepare Data 
+# 2. Split into Train and Test 
+# 3. Run Bayesian Model (JAGS) on the Train Set 
+# 4. Predict on Test Set and Compute R²
+##############################################################
+
+# Clear workspace
+rm(list=ls())
+
+##############################################################
+# Load required libraries
+##############################################################
+library(ggplot2)     # For visualizations
+library(dplyr)        # For data manipulation
+library(rjags)        # For JAGS interface
+library(coda)         # For MCMC diagnostics
+
+##############################################################
+# Read the data
+##############################################################
+file_path <- "C:/Users/chopr/Desktop/Statistics Subjects/STAT431-ThisYear/project/dataset/obesity_dataset_linear.csv"
+obesity_data <- read.csv(file_path)
+
+# Display the first few rows of the dataframe
+head(obesity_data)
+
+##############################################################
+# Create BMI column (BMI = Weight / Height^2)
+##############################################################
+obesity_data <- obesity_data %>%
+  mutate(BMI_cont = Weight / (Height ^ 2)) %>%
+  mutate(BMI_squared = BMI_cont ^ 2) %>%
+  select(-CALC, -CAEC) # Dropping specified columns
+
+head(obesity_data)
+
+##############################################################
+# Convert select variables into factors
+##############################################################
+factor_vars <- c("Gender", "family_history_with_overweight", "FAVC", 
+                 "SMOKE", "SCC", "MTRANS", "NObeyesdad")
+obesity_data[factor_vars] <- lapply(obesity_data[factor_vars], factor)
+
+str(obesity_data)
+
+##############################################################
+# Exploratory Plots (optional - won't affect functionality)
+##############################################################
+# Numeric and categorical variable distribution checks
+numeric_vars <- sapply(obesity_data, is.numeric)
+categorical_vars <- sapply(obesity_data, is.factor)
+
+numeric_var_names <- names(obesity_data)[numeric_vars]
+categorical_var_names <- names(obesity_data)[categorical_vars]
+
+##############################################################
+# Drop Weight, NObeyesdad columns as previously done
+##############################################################
+obesity_data <- obesity_data %>%
+  select(-Weight, -NObeyesdad)
+
+head(obesity_data)
+
+
+##############################################################
+# Data Preparation for JAGS
+# Steps:
+# 1. Convert categorical features to numeric (0-based)
+# 2. Scale and standardize numeric features as before
+# 3. Create predictor matrix X
+##############################################################
+
+# Convert categorical features to numeric (0-based)
+categorical_features <- c("Gender", "family_history_with_overweight", "FAVC","SMOKE", "SCC", "MTRANS")
+obesity_data[categorical_features] <- lapply(obesity_data[categorical_features], function(x) {
+  numeric_values <- as.numeric(factor(x))
+  numeric_values - min(numeric_values, na.rm = TRUE)
+})
+
+# Identify columns to scale (excluding Age, BMI_cont, group, MTRANS because group/MTRANS used for grouping)
+columns_to_scale <- setdiff(names(obesity_data), c("Age", "BMI_squared", "group", "MTRANS"))
+
+# Min-max scaling for selected columns
+obesity_data[columns_to_scale] <- lapply(obesity_data[columns_to_scale], function(x) {
+  (x - min(x, na.rm = TRUE)) / (max(x, na.rm = TRUE) - min(x, na.rm = TRUE))
+})
+
+# Standardize Age
+obesity_data <- obesity_data %>%
+  mutate(
+    Age = (Age - mean(Age, na.rm = TRUE)) / sd(Age, na.rm = TRUE)
+  )
+
+# Define predictors
+predictors <- c( "FAVC","SMOKE", "SCC", "FAF", "TUE", "CH2O", "NCP", "FCVC")
+
+X <- as.matrix(obesity_data[, predictors])
+
+# Create a group variable from MTRANS
+obesity_data$group <- obesity_data$MTRANS  
+obesity_data$group <- as.integer(as.factor(obesity_data$group))
+
+# Final structure
+N <- nrow(obesity_data)
+P <- ncol(X)
+J <- length(unique(obesity_data$group))
+
+str(obesity_data)
+cat("Dimensions of X:", dim(X), "\n")
+cat("Number of Observations (N):", N, "\n")
+cat("Number of Groups (J):", J, "\n")
+cat("Number of Predictors (P):", P, "\n")
+
+##############################################################
+# Train-Test Split
+##############################################################
+set.seed(123) # For reproducibility
+train_index <- sample(1:N, size = floor(0.7*N), replace = FALSE)
+test_index <- setdiff(1:N, train_index)
+
+obesity_train <- obesity_data[train_index, ]
+obesity_test <- obesity_data[test_index, ]
+
+X_train <- X[train_index, ]
+X_test <- X[test_index, ]
+
+N_train <- nrow(X_train)
+N_test <- nrow(X_test)
+
+J_train <- length(unique(obesity_train$group))
+# Note: It's possible that test set doesn't have all groups present in training.
+# For simplicity, we assume all groups in test are also in train.
+# If not, you'd have to handle groups not seen in training (set u[group] = 0 or similar).
+
+##############################################################
+# Prepare Data for JAGS from the Training Set
+##############################################################
+jags_data <- list(
+  N = N_train,
+  J = J_train,
+  BMI_squared = obesity_train$BMI_squared,
+  X = X_train,
+  group = obesity_train$group
+)
+
+##############################################################
+# JAGS Model File (question_3.bug)
+# We'll write it here as a temporary file
+##############################################################
+model_string <- "
+model {
+  # Likelihood
+  for (i in 1:N) {
+    BMI_squared[i] ~ dnorm(mu[i], tau_residual)
+    mu[i] <- beta0 + inprod(X[i, ], beta[]) + u[group[i]]
+    # For WAIC calculation
+    likelihood[i] <- dnorm(BMI_squared[i], mu[i], tau_residual)
+  }
+
+  # Group effects
+  for (j in 1:J) {
+    u[j] ~ dnorm(0, tau_group)
+  }
+
+  # Priors for coefficients
+  beta0 ~ dnorm(0, 0.001)
+
+  beta[1] ~ dnorm(0, 0.001) # FAVC
+  beta[2] ~ dnorm(0, 0.001) # SMOKE
+  beta[3] ~ dnorm(0, 0.001) # SCC
+  beta[4] ~ dnorm(0, 0.001) # FAF
+  beta[5] ~ dnorm(0, 0.000001) # TUE
+  beta[6] ~ dnorm(0, 0.000001) # CH2O
+  beta[7] ~ dnorm(0, 0.001) # NCP
+  beta[8] ~ dnorm(0, 0.001) # FCVC
+
+  # Priors for variance
+  tau_residual ~ dgamma(0.01, 0.01)
+  sigma2 <- 1 / tau_residual
+
+  tau_group ~ dexp(1)
+}
+"
+
+# Write model to a temporary file
+model_file <- tempfile(fileext=".bug")
+cat(model_string, file = model_file)
+
+##############################################################
+# Initial values
+##############################################################
+inits <- function() {
+  list(
+    beta0 = 0,
+    beta = rep(0, P),
+    u = rep(0, J_train),
+    tau_residual = 0.5,
+    tau_group = 1
+  )
+}
+
+##############################################################
+# Run the model on the training data
+##############################################################
+model <- jags.model(model_file, data = jags_data, inits = inits, n.chains = 3, n.adapt = 1000)
+update(model, 4000) # Burn-in
+
+samples <- coda.samples(model, variable.names = c("beta0", "beta", "u", "sigma2", "tau_group"), n.iter = 100000)
+
+##############################################################
+# Posterior summaries and convergence checks
+##############################################################
+print("Summary of posterior (after burn-in):")
+summary(samples)
+
+par(mar = c(2,2,2,2))
+plot(samples, density=FALSE, trace=TRUE, auto.layout = TRUE , ask=FALSE)
+
+autocorr.plot(samples[[1]])
+gelman_results <- gelman.diag(samples, autoburnin=FALSE)
+gelman.plot(samples, autoburnin=FALSE)
+print(gelman_results)
+
+##############################################################
+# WAIC Calculation
+# We need to sample the 'likelihood' node from the model
+##############################################################
+samples_likelihood <- coda.samples(model, variable.names=c("likelihood"), n.iter=10000)
+
+# Combine likelihood for all chains
+likelihood_chains <- do.call(rbind, samples_likelihood)
+
+# fbar: posterior mean of likelihood per datapoint
+fbar <- colMeans(likelihood_chains)
+
+# Remove any variable named 'var' to allow 'var' function usage
+#rm(var)
+
+# Column-wise variance of log(likelihood)
+pW <- sum(apply(log(likelihood_chains), 2, var))
+
+# WAIC
+WAIC <- -2 * sum(log(fbar)) + 2 * pW
+#cat("WAIC:", WAIC, "\n")
+print("WAIC:")
+print(WAIC)
+
+
+##############################################################
+# Extract posterior means for prediction on TEST set
+##############################################################
+posterior_mat <- as.matrix(samples)
+beta0_post <- posterior_mat[,"beta0"]
+beta_post <- posterior_mat[,grep("^beta\\[", colnames(posterior_mat))]
+u_indices <- grep("^u\\[", colnames(posterior_mat))
+u_post <- posterior_mat[, u_indices]
+
+# Posterior means
+beta0_hat <- mean(beta0_post)
+beta_hat <- apply(beta_post, 2, mean)
+u_hat <- apply(u_post, 2, mean)
+
+##############################################################
+# Predict on test set
+##############################################################
+# Note: test groups must align with train groups indexing
+# If some test group doesn't appear in training, it will be an issue. 
+# Assuming all test groups appear in train:
+group_test <- obesity_test$group
+y_test <- obesity_test$BMI_squared
+
+y_pred <- beta0_hat + X_test %*% beta_hat + u_hat[group_test]
+
+y_pred <- as.numeric(y_pred)
+
+##############################################################
+# Compute R² on test set
+##############################################################
+# R² = 1 - SS_res/SS_tot
+SS_res <- sum((y_test - y_pred)^2)
+SS_tot <- sum((y_test - mean(y_test))^2)
+R2_test <- 1 - (SS_res/SS_tot)
+
+print("R² on Test Set:")
+print(R2_test)
+
+##############################################################
+# DONE
+##############################################################
+
+```
+
+
+# Question 3 - Informative Beta[0] (intercept) - it is with a mean 25. Rest all are Normal Non-informative
 
 ```{r}
 ##############################################################
@@ -311,6 +902,7 @@ print(R2_test)
 
 ```
 
+# Question 3 - Uninformative Normal Dist Priors for all Beta Values
 
 ```{r}
 ##############################################################
@@ -611,6 +1203,7 @@ print(R2_test)
 ##############################################################
 
 ```
+# Question 3 - Non Semi Conjugate t-distribution prior for catering to fields with possible outliers
 
 
 ```{r}
@@ -889,6 +1482,1743 @@ cat("R² on Test Set:", R2_test, "\n")
 print("R² on Test Set:")
 print(R2_test)
 
+
+##############################################################
+# DONE
+##############################################################
+
+```
+
+
+
+# Question 3 - Non Informative Double Exp prior for zeroeing out 
+
+
+```{r}
+##############################################################
+# Full R Script: 
+# 1. Load and Prepare Data 
+# 2. Split into Train and Test 
+# 3. Run Bayesian Model (JAGS) on the Train Set 
+# 4. Predict on Test Set and Compute R²
+# 5. Compute WAIC
+# 6. Heavy-tailed (t-distribution) priors for regression coefficients
+##############################################################
+
+# Clear workspace
+rm(list=ls())
+
+##############################################################
+# Load required libraries
+##############################################################
+library(ggplot2)     # For visualizations
+library(dplyr)        # For data manipulation
+library(rjags)        # For JAGS interface
+library(coda)         # For MCMC diagnostics
+
+##############################################################
+# Read the data
+##############################################################
+file_path <- "C:/Users/chopr/Desktop/Statistics Subjects/STAT431-ThisYear/project/dataset/obesity_dataset_linear.csv"
+obesity_data <- read.csv(file_path)
+
+# Display the first few rows of the dataframe
+head(obesity_data)
+
+##############################################################
+# Create BMI column (BMI = Weight / Height^2)
+##############################################################
+obesity_data <- obesity_data %>%
+  mutate(BMI_cont = Weight / (Height ^ 2)) %>%
+  mutate(BMI_squared = BMI_cont ^ 2) %>%
+  select(-CALC, -CAEC) # Dropping specified columns
+
+head(obesity_data)
+
+##############################################################
+# Convert select variables into factors
+##############################################################
+factor_vars <- c("Gender", "family_history_with_overweight", "FAVC", 
+                 "SMOKE", "SCC", "MTRANS", "NObeyesdad")
+obesity_data[factor_vars] <- lapply(obesity_data[factor_vars], factor)
+
+str(obesity_data)
+
+##############################################################
+# Drop Weight, NObeyesdad columns as previously done
+##############################################################
+obesity_data <- obesity_data %>%
+  select(-Weight, -NObeyesdad)
+
+head(obesity_data)
+
+##############################################################
+# Data Preparation for JAGS
+# Steps:
+# 1. Convert categorical features to numeric (0-based)
+# 2. Scale and standardize numeric features as before
+# 3. Create predictor matrix X
+##############################################################
+
+# Convert categorical features to numeric (0-based)
+categorical_features <- c("Gender", "family_history_with_overweight", "FAVC","SMOKE", "SCC", "MTRANS")
+obesity_data[categorical_features] <- lapply(obesity_data[categorical_features], function(x) {
+  numeric_values <- as.numeric(factor(x))
+  numeric_values - min(numeric_values, na.rm = TRUE)
+})
+
+# Identify columns to scale (excluding Age, BMI_squared, group, MTRANS)
+columns_to_scale <- setdiff(names(obesity_data), c("Age", "BMI_squared", "group", "MTRANS"))
+
+# Min-max scaling for selected columns
+obesity_data[columns_to_scale] <- lapply(obesity_data[columns_to_scale], function(x) {
+  (x - min(x, na.rm = TRUE)) / (max(x, na.rm = TRUE) - min(x, na.rm = TRUE))
+})
+
+# Standardize Age
+obesity_data <- obesity_data %>%
+  mutate(
+    Age = (Age - mean(Age, na.rm = TRUE)) / sd(Age, na.rm = TRUE)
+  )
+
+# Define predictors
+predictors <- c("Age", "Gender", "family_history_with_overweight", "FAVC",
+                "SMOKE", "SCC", "FAF", "TUE", "CH2O", "NCP", "FCVC")
+
+X <- as.matrix(obesity_data[, predictors])
+
+# Create a group variable from MTRANS
+obesity_data$group <- obesity_data$MTRANS  
+obesity_data$group <- as.integer(as.factor(obesity_data$group))
+
+# Final structure
+N <- nrow(obesity_data)
+P <- ncol(X)
+J <- length(unique(obesity_data$group))
+
+str(obesity_data)
+cat("Dimensions of X:", dim(X), "\n")
+cat("Number of Observations (N):", N, "\n")
+cat("Number of Groups (J):", J, "\n")
+cat("Number of Predictors (P):", P, "\n")
+
+##############################################################
+# Train-Test Split
+##############################################################
+set.seed(123) # For reproducibility
+train_index <- sample(1:N, size = floor(0.7*N), replace = FALSE)
+test_index <- setdiff(1:N, train_index)
+
+obesity_train <- obesity_data[train_index, ]
+obesity_test <- obesity_data[test_index, ]
+
+X_train <- X[train_index, ]
+X_test <- X[test_index, ]
+
+N_train <- nrow(X_train)
+N_test <- nrow(X_test)
+
+J_train <- length(unique(obesity_train$group))
+
+##############################################################
+# Prepare Data for JAGS from the Training Set
+##############################################################
+jags_data <- list(
+  N = N_train,
+  J = J_train,
+  BMI_squared = obesity_train$BMI_squared,
+  X = X_train,
+  group = obesity_train$group
+)
+
+##############################################################
+# JAGS Model File
+# Updated to use t-distribution (dt) priors for coefficients
+##############################################################
+model_string <- "
+model {
+  # Likelihood
+  for (i in 1:N) {
+    BMI_squared[i] ~ dnorm(mu[i], tau_residual)
+    mu[i] <- beta0 + inprod(X[i, ], beta[]) + u[group[i]]
+    # For WAIC calculation
+    likelihood[i] <- dnorm(BMI_squared[i], mu[i], tau_residual)
+  }
+
+  # Group effects
+  for (j in 1:J) {
+    u[j] ~ dnorm(0, tau_group)
+  }
+  
+
+  beta[1] ~ ddexp(0, lambda) # Age
+  beta[2] ~ ddexp(0, lambda) # Gender
+  beta[3] ~ ddexp(0, lambda) # family_history_with_overweight
+  beta[4] ~ ddexp(0, lambda) # FAVC
+  beta[5] ~ ddexp(0, lambda) # SMOKE
+  beta[6] ~ ddexp(0, lambda) # SCC
+  beta[7] ~ ddexp(0, lambda) # FAF
+  beta[8] ~ ddexp(0, lambda) # TUE
+  beta[9] ~ ddexp(0, lambda) # CH2O
+  beta[10] ~ ddexp(0, lambda) # NCP
+  beta[11] ~ ddexp(0, lambda) # FCVC
+
+
+  # Priors for coefficients (double exponential/Laplacian prior)
+  beta0 ~ dnorm(0, 0.001)
+
+  # Hyperpriors for variance parameters
+  lambda ~ dexp(1)  # Hyperprior for the scale of double exponential prior
+  tau_residual ~ dgamma(0.01, 0.01)
+  sigma2 <- 1 / tau_residual
+
+  tau_group ~ dexp(1)
+}
+"
+
+
+# Write model to a temporary file
+model_file <- tempfile(fileext=".bug")
+cat(model_string, file = model_file)
+
+##############################################################
+# Initial values
+##############################################################
+inits <- function() {
+  list(
+    beta0 = 20,
+    beta = rep(0, P), 
+    u = rep(0, J_train),
+    tau_residual = 1,
+    tau_group = 1,
+    lambda=rgamma(1, 1, 1)
+  )
+}
+
+##############################################################
+# Run the model on the training data
+##############################################################
+model <- jags.model(model_file, data = jags_data, inits = inits, n.chains = 3, n.adapt = 2000)
+update(model, 2000) # Burn-in
+
+samples <- coda.samples(model, variable.names = c("beta0", "beta", "u", "sigma2", "tau_group"), n.iter = 20000)
+
+##############################################################
+# Posterior summaries and convergence checks
+##############################################################
+print("Summary of posterior (after burn-in):")
+summary(samples)
+
+# Diagnostics (optional)
+# par(mar = c(2,2,2,2))
+# plot(samples, density=FALSE, trace=TRUE, auto.layout = TRUE , ask=FALSE)
+autocorr.plot(samples[[1]])
+gelman_results <- gelman.diag(samples, autoburnin=FALSE)
+# gelman.plot(samples, autoburnin=FALSE)
+print(gelman_results)
+
+##############################################################
+# WAIC Calculation
+##############################################################
+samples_likelihood <- coda.samples(model, variable.names=c("likelihood"), n.iter=20000)
+
+# Combine likelihood for all chains
+likelihood_chains <- do.call(rbind, samples_likelihood)
+
+# fbar: posterior mean of likelihood per datapoint
+fbar <- colMeans(likelihood_chains)
+
+# Column-wise variance of log(likelihood)
+pW <- sum(apply(log(likelihood_chains), 2, var))
+
+# WAIC
+WAIC <- -2 * sum(log(fbar)) + 2 * pW
+cat("WAIC:", WAIC, "\n")
+print("WAIC:")
+print(WAIC)
+
+
+##############################################################
+# Extract posterior means for prediction on TEST set
+##############################################################
+posterior_mat <- as.matrix(samples)
+beta0_post <- posterior_mat[,"beta0"]
+beta_post <- posterior_mat[,grep("^beta\\[", colnames(posterior_mat))]
+u_indices <- grep("^u\\[", colnames(posterior_mat))
+u_post <- posterior_mat[, u_indices]
+
+# Posterior means
+beta0_hat <- mean(beta0_post)
+beta_hat <- apply(beta_post, 2, mean)
+u_hat <- apply(u_post, 2, mean)
+
+##############################################################
+# Predict on test set
+##############################################################
+group_test <- obesity_test$group
+y_test <- obesity_test$BMI_squared
+
+y_pred <- beta0_hat + X_test %*% beta_hat + u_hat[group_test]
+y_pred <- as.numeric(y_pred)
+
+##############################################################
+# Compute R² on test set
+##############################################################
+SS_res <- sum((y_test - y_pred)^2)
+SS_tot <- sum((y_test - mean(y_test))^2)
+R2_test <- 1 - (SS_res/SS_tot)
+cat("R² on Test Set:", R2_test, "\n")
+print("R² on Test Set:")
+print(R2_test)
+
+
+##############################################################
+# DONE
+##############################################################
+
+```
+
+
+# Question 3 - Fit a LR Model (Frequentist)
+```{r}
+##############################################################
+# Full R Script: 
+# 1. Load and Prepare Data 
+# 2. Split into Train and Test 
+# 3. Run Normal Linear Regression on the Train Set 
+# 4. Predict on Test Set and Compute R²
+# 5. Print Beta Values and Model Summary
+##############################################################
+
+# Clear workspace
+rm(list=ls())
+
+##############################################################
+# Load required libraries
+##############################################################
+library(ggplot2)     # For visualizations
+library(dplyr)       # For data manipulation
+
+##############################################################
+# Read the data
+##############################################################
+file_path <- "C:/Users/chopr/Desktop/Statistics Subjects/STAT431-ThisYear/project/dataset/obesity_dataset_linear.csv"
+obesity_data <- read.csv(file_path)
+
+# Display the first few rows of the dataframe
+head(obesity_data)
+
+##############################################################
+# Create BMI column (BMI = Weight / Height^2)
+##############################################################
+obesity_data <- obesity_data %>%
+  mutate(BMI_cont = Weight / (Height ^ 2)) %>%
+  mutate(BMI_squared = BMI_cont ^ 2) %>%
+  select(-CALC, -CAEC) # Dropping specified columns
+
+head(obesity_data)
+
+##############################################################
+# Convert select variables into factors
+##############################################################
+factor_vars <- c("Gender", "family_history_with_overweight", "FAVC", 
+                "SMOKE", "SCC", "MTRANS", "NObeyesdad")
+obesity_data[factor_vars] <- lapply(obesity_data[factor_vars], factor)
+
+str(obesity_data)
+
+##############################################################
+# Drop Weight, NObeyesdad columns as previously done
+##############################################################
+obesity_data <- obesity_data %>%
+  select(-Weight, -NObeyesdad)
+
+head(obesity_data)
+
+##############################################################
+# Data Preparation for Linear Regression
+# Steps:
+# 1. Ensure categorical features are factors
+# 2. Scale and standardize numeric features as needed
+# 3. Create predictor matrix X
+##############################################################
+
+# Ensure categorical features are factors
+categorical_features <- c("Gender", "family_history_with_overweight", "FAVC","SMOKE", "SCC", "MTRANS")
+obesity_data[categorical_features] <- lapply(obesity_data[categorical_features], factor)
+
+# Identify numeric columns to scale (exclude categorical variables and target variable)
+# Also exclude 'Age' if you intend to standardize it separately
+columns_to_exclude <- c("Age", "BMI_squared", "MTRANS")
+columns_to_scale <- names(obesity_data)[sapply(obesity_data, is.numeric) & 
+                                         !(names(obesity_data) %in% columns_to_exclude)]
+
+# Min-max scaling for selected numeric columns
+obesity_data[columns_to_scale] <- lapply(obesity_data[columns_to_scale], function(x) {
+  (x - min(x, na.rm = TRUE)) / (max(x, na.rm = TRUE) - min(x, na.rm = TRUE))
+})
+
+# Standardize Age
+obesity_data <- obesity_data %>%
+  mutate(
+    Age = (Age - mean(Age, na.rm = TRUE)) / sd(Age, na.rm = TRUE)
+  )
+
+# Verify that scaling was applied only to numeric columns
+str(obesity_data)
+
+##############################################################
+# Define predictors
+# Include categorical variables as factors in the model formula
+##############################################################
+predictors <- c("Age", "Gender", "family_history_with_overweight", "FAVC",
+                "SMOKE", "SCC", "FAF", "TUE", "CH2O", "NCP", "FCVC", "MTRANS")
+
+# Create formula for linear regression
+formula <- as.formula(paste("BMI_squared ~", paste(predictors, collapse = " + ")))
+
+##############################################################
+# Train-Test Split
+##############################################################
+set.seed(123) # For reproducibility
+N <- nrow(obesity_data)
+train_index <- sample(1:N, size = floor(0.7*N), replace = FALSE)
+test_index <- setdiff(1:N, train_index)
+
+obesity_train <- obesity_data[train_index, ]
+obesity_test <- obesity_data[test_index, ]
+
+##############################################################
+# Run Normal Linear Regression on the Training Set
+##############################################################
+linear_model <- lm(formula, data = obesity_train)
+
+##############################################################
+# Summary of the Linear Model
+##############################################################
+summary_linear <- summary(linear_model)
+print("Summary of the Linear Regression Model:")
+print(summary_linear)
+
+##############################################################
+# Extract Beta Coefficients
+##############################################################
+beta_coefficients <- coef(linear_model)
+print("Beta Coefficients:")
+print(beta_coefficients)
+
+##############################################################
+# Predict on Test Set
+##############################################################
+y_test <- obesity_test$BMI_squared
+y_pred <- predict(linear_model, newdata = obesity_test)
+
+##############################################################
+# Compute R² on Test Set
+##############################################################
+SS_res <- sum((y_test - y_pred)^2)
+SS_tot <- sum((y_test - mean(y_test))^2)
+R2_test <- 1 - (SS_res/SS_tot)
+cat("R² on Test Set:", R2_test, "\n")
+print("R² on Test Set:")
+print(R2_test)
+
+##############################################################
+# Optional: Visualize Actual vs Predicted
+##############################################################
+ggplot(data = obesity_test, aes(x = y_test, y = y_pred)) +
+  geom_point(color = 'blue', alpha = 0.6) +
+  geom_abline(slope = 1, intercept = 0, color = 'red', linetype = "dashed") +
+  labs(title = "Actual vs Predicted BMI_squared",
+       x = "Actual BMI_squared",
+       y = "Predicted BMI_squared") +
+  theme_minimal()
+
+##############################################################
+# DONE
+##############################################################
+#
+
+```
+
+
+# Question 3 - Very Informative Normal Dist Priors (given beta values from LR) for all Beta Values
+
+```{r}
+##############################################################
+# Full R Script: 
+# 1. Load and Prepare Data 
+# 2. Split into Train and Test 
+# 3. Run Bayesian Model (JAGS) on the Train Set 
+# 4. Predict on Test Set and Compute R²
+##############################################################
+
+# Clear workspace
+rm(list=ls())
+
+##############################################################
+# Load required libraries
+##############################################################
+library(ggplot2)     # For visualizations
+library(dplyr)        # For data manipulation
+library(rjags)        # For JAGS interface
+library(coda)         # For MCMC diagnostics
+
+##############################################################
+# Read the data
+##############################################################
+file_path <- "C:/Users/chopr/Desktop/Statistics Subjects/STAT431-ThisYear/project/dataset/obesity_dataset_linear.csv"
+obesity_data <- read.csv(file_path)
+
+# Display the first few rows of the dataframe
+head(obesity_data)
+
+##############################################################
+# Create BMI column (BMI = Weight / Height^2)
+##############################################################
+obesity_data <- obesity_data %>%
+  mutate(BMI_cont = Weight / (Height ^ 2)) %>%
+  mutate(BMI_squared = BMI_cont ^ 2) %>%
+  select(-CALC, -CAEC) # Dropping specified columns
+
+head(obesity_data)
+
+##############################################################
+# Convert select variables into factors
+##############################################################
+factor_vars <- c("Gender", "family_history_with_overweight", "FAVC", 
+                 "SMOKE", "SCC", "MTRANS", "NObeyesdad")
+obesity_data[factor_vars] <- lapply(obesity_data[factor_vars], factor)
+
+str(obesity_data)
+
+##############################################################
+# Exploratory Plots (optional - won't affect functionality)
+##############################################################
+# Numeric and categorical variable distribution checks
+numeric_vars <- sapply(obesity_data, is.numeric)
+categorical_vars <- sapply(obesity_data, is.factor)
+
+numeric_var_names <- names(obesity_data)[numeric_vars]
+categorical_var_names <- names(obesity_data)[categorical_vars]
+
+##############################################################
+# Drop Weight, NObeyesdad columns as previously done
+##############################################################
+obesity_data <- obesity_data %>%
+  select(-Weight, -NObeyesdad)
+
+head(obesity_data)
+
+
+##############################################################
+# Data Preparation for JAGS
+# Steps:
+# 1. Convert categorical features to numeric (0-based)
+# 2. Scale and standardize numeric features as before
+# 3. Create predictor matrix X
+##############################################################
+
+# Convert categorical features to numeric (0-based)
+categorical_features <- c("Gender", "family_history_with_overweight", "FAVC","SMOKE", "SCC", "MTRANS")
+obesity_data[categorical_features] <- lapply(obesity_data[categorical_features], function(x) {
+  numeric_values <- as.numeric(factor(x))
+  numeric_values - min(numeric_values, na.rm = TRUE)
+})
+
+# Identify columns to scale (excluding Age, BMI_cont, group, MTRANS because group/MTRANS used for grouping)
+columns_to_scale <- setdiff(names(obesity_data), c("Age", "BMI_squared", "group", "MTRANS"))
+
+# Min-max scaling for selected columns
+obesity_data[columns_to_scale] <- lapply(obesity_data[columns_to_scale], function(x) {
+  (x - min(x, na.rm = TRUE)) / (max(x, na.rm = TRUE) - min(x, na.rm = TRUE))
+})
+
+# Standardize Age
+obesity_data <- obesity_data %>%
+  mutate(
+    Age = (Age - mean(Age, na.rm = TRUE)) / sd(Age, na.rm = TRUE)
+  )
+
+# Define predictors
+predictors <- c("Age", "Gender", "family_history_with_overweight", "FAVC",
+                "SMOKE", "SCC", "FAF", "TUE", "CH2O", "NCP", "FCVC")
+
+X <- as.matrix(obesity_data[, predictors])
+
+# Create a group variable from MTRANS
+obesity_data$group <- obesity_data$MTRANS  
+obesity_data$group <- as.integer(as.factor(obesity_data$group))
+
+# Final structure
+N <- nrow(obesity_data)
+P <- ncol(X)
+J <- length(unique(obesity_data$group))
+
+str(obesity_data)
+cat("Dimensions of X:", dim(X), "\n")
+cat("Number of Observations (N):", N, "\n")
+cat("Number of Groups (J):", J, "\n")
+cat("Number of Predictors (P):", P, "\n")
+
+##############################################################
+# Train-Test Split
+##############################################################
+set.seed(123) # For reproducibility
+train_index <- sample(1:N, size = floor(0.7*N), replace = FALSE)
+test_index <- setdiff(1:N, train_index)
+
+obesity_train <- obesity_data[train_index, ]
+obesity_test <- obesity_data[test_index, ]
+
+X_train <- X[train_index, ]
+X_test <- X[test_index, ]
+
+N_train <- nrow(X_train)
+N_test <- nrow(X_test)
+
+J_train <- length(unique(obesity_train$group))
+# Note: It's possible that test set doesn't have all groups present in training.
+# For simplicity, we assume all groups in test are also in train.
+# If not, you'd have to handle groups not seen in training (set u[group] = 0 or similar).
+
+##############################################################
+# Prepare Data for JAGS from the Training Set
+##############################################################
+jags_data <- list(
+  N = N_train,
+  J = J_train,
+  BMI_squared = obesity_train$BMI_squared,
+  X = X_train,
+  group = obesity_train$group
+)
+
+##############################################################
+# JAGS Model File (question_3.bug)
+# We'll write it here as a temporary file
+##############################################################
+model_string <- "
+model {
+  # Likelihood
+  for (i in 1:N) {
+    BMI_squared[i] ~ dnorm(mu[i], tau_residual)
+    mu[i] <- beta0 + inprod(X[i, ], beta[]) + u[group[i]]
+    # For WAIC calculation
+    likelihood[i] <- dnorm(BMI_squared[i], mu[i], tau_residual)
+  }
+
+  # Group effects
+  u[1] ~ dnorm(0, tau_group)
+  u[2] ~ dnorm(214, tau_group)
+  u[3] ~ dnorm(196, tau_group)
+  u[4] ~ dnorm(304, tau_group)
+  u[5] ~ dnorm(125, tau_group)
+
+  # Priors for coefficients
+  beta0 ~ dnorm(-194, 0.001)
+
+  beta[1] ~ dnorm(123, 0.001) # Age
+  beta[2] ~ dnorm(-54, 0.001) # Gender
+  beta[3] ~ dnorm(442, 0.001) # family_history_with_overweight
+  beta[4] ~ dnorm(219, 0.001) # FAVC
+  beta[5] ~ dnorm(-45, 0.001) # SMOKE
+  beta[6] ~ dnorm(-156, 0.001) # SCC
+  beta[7] ~ dnorm(-175, 0.001) # FAF
+  beta[8] ~ dnorm(-55, 0.000001) # TUE
+  beta[9] ~ dnorm(111, 0.000001) # CH2O
+  beta[10] ~ dnorm(164, 0.001) # NCP
+  beta[11] ~ dnorm(450, 0.001) # FCVC
+
+  # Priors for variance
+  tau_residual ~ dgamma(0.01, 0.01)
+  sigma2 <- 1 / tau_residual
+
+  tau_group ~ dexp(1)
+}
+"
+
+# Write model to a temporary file
+model_file <- tempfile(fileext=".bug")
+cat(model_string, file = model_file)
+
+##############################################################
+# Initial values
+##############################################################
+inits <- function() {
+  list(
+    beta0 = 0,
+    beta = rep(0, P),
+    u = rep(0, J_train),
+    tau_residual = 0.5,
+    tau_group = 1
+  )
+}
+
+##############################################################
+# Run the model on the training data
+##############################################################
+model <- jags.model(model_file, data = jags_data, inits = inits, n.chains = 3, n.adapt = 5000)
+update(model, 4000) # Burn-in
+
+samples <- coda.samples(model, variable.names = c("beta0", "beta", "u", "sigma2", "tau_group"), n.iter = 100000)
+
+##############################################################
+# Posterior summaries and convergence checks
+##############################################################
+print("Summary of posterior (after burn-in):")
+summary(samples)
+
+par(mar = c(2,2,2,2))
+plot(samples, density=FALSE, trace=TRUE, auto.layout = TRUE , ask=FALSE)
+
+autocorr.plot(samples[[1]])
+gelman_results <- gelman.diag(samples, autoburnin=FALSE)
+gelman.plot(samples, autoburnin=FALSE)
+print(gelman_results)
+
+##############################################################
+# WAIC Calculation
+# We need to sample the 'likelihood' node from the model
+##############################################################
+samples_likelihood <- coda.samples(model, variable.names=c("likelihood"), n.iter=10000)
+
+# Combine likelihood for all chains
+likelihood_chains <- do.call(rbind, samples_likelihood)
+
+# fbar: posterior mean of likelihood per datapoint
+fbar <- colMeans(likelihood_chains)
+
+# Remove any variable named 'var' to allow 'var' function usage
+#rm(var)
+
+# Column-wise variance of log(likelihood)
+pW <- sum(apply(log(likelihood_chains), 2, var))
+
+# WAIC
+WAIC <- -2 * sum(log(fbar)) + 2 * pW
+cat("WAIC:", WAIC, "\n")
+print("WAIC:")
+print(WAIC)
+
+
+##############################################################
+# Extract posterior means for prediction on TEST set
+##############################################################
+posterior_mat <- as.matrix(samples)
+beta0_post <- posterior_mat[,"beta0"]
+beta_post <- posterior_mat[,grep("^beta\\[", colnames(posterior_mat))]
+u_indices <- grep("^u\\[", colnames(posterior_mat))
+u_post <- posterior_mat[, u_indices]
+
+# Posterior means
+beta0_hat <- mean(beta0_post)
+beta_hat <- apply(beta_post, 2, mean)
+u_hat <- apply(u_post, 2, mean)
+
+##############################################################
+# Predict on test set
+##############################################################
+# Note: test groups must align with train groups indexing
+# If some test group doesn't appear in training, it will be an issue. 
+# Assuming all test groups appear in train:
+group_test <- obesity_test$group
+y_test <- obesity_test$BMI_squared
+
+y_pred <- beta0_hat + X_test %*% beta_hat + u_hat[group_test]
+
+y_pred <- as.numeric(y_pred)
+
+##############################################################
+# Compute R² on test set
+##############################################################
+# R² = 1 - SS_res/SS_tot
+SS_res <- sum((y_test - y_pred)^2)
+SS_tot <- sum((y_test - mean(y_test))^2)
+R2_test <- 1 - (SS_res/SS_tot)
+
+cat("R² on Test Set:", R2_test, "\n")
+print("R² on Test Set:")
+print(R2_test)
+
+##############################################################
+# DONE
+##############################################################
+
+```
+
+
+
+# Question 2: With different starting points
+
+```{r}
+##############################################################
+# Full R Script: 
+# 1. Load and Prepare Data 
+# 2. Split into Train and Test 
+# 3. Run Bayesian Model (JAGS) on the Train Set 
+# 4. Predict on Test Set and Compute R²
+##############################################################
+
+# Clear workspace
+rm(list=ls())
+
+##############################################################
+# Load required libraries
+##############################################################
+library(ggplot2)     # For visualizations
+library(dplyr)        # For data manipulation
+library(rjags)        # For JAGS interface
+library(coda)         # For MCMC diagnostics
+
+##############################################################
+# Read the data
+##############################################################
+file_path <- "C:/Users/chopr/Desktop/Statistics Subjects/STAT431-ThisYear/project/dataset/obesity_dataset_linear.csv"
+obesity_data <- read.csv(file_path)
+
+# Display the first few rows of the dataframe
+head(obesity_data)
+
+##############################################################
+# Create BMI column (BMI = Weight / Height^2)
+##############################################################
+obesity_data <- obesity_data %>%
+  mutate(BMI_cont = Weight / (Height ^ 2)) %>%
+  mutate(BMI_squared = BMI_cont ^ 2) %>%
+  select(-CALC, -CAEC) # Dropping specified columns
+
+head(obesity_data)
+
+##############################################################
+# Convert select variables into factors
+##############################################################
+factor_vars <- c("Gender", "family_history_with_overweight", "FAVC", 
+                 "SMOKE", "SCC", "MTRANS", "NObeyesdad")
+obesity_data[factor_vars] <- lapply(obesity_data[factor_vars], factor)
+
+str(obesity_data)
+
+##############################################################
+# Exploratory Plots (optional - won't affect functionality)
+##############################################################
+# Numeric and categorical variable distribution checks
+numeric_vars <- sapply(obesity_data, is.numeric)
+categorical_vars <- sapply(obesity_data, is.factor)
+
+numeric_var_names <- names(obesity_data)[numeric_vars]
+categorical_var_names <- names(obesity_data)[categorical_vars]
+
+##############################################################
+# Drop Weight, NObeyesdad columns as previously done
+##############################################################
+obesity_data <- obesity_data %>%
+  select(-Weight, -NObeyesdad)
+
+head(obesity_data)
+
+
+##############################################################
+# Data Preparation for JAGS
+# Steps:
+# 1. Convert categorical features to numeric (0-based)
+# 2. Scale and standardize numeric features as before
+# 3. Create predictor matrix X
+##############################################################
+
+# Convert categorical features to numeric (0-based)
+categorical_features <- c("Gender", "family_history_with_overweight", "FAVC","SMOKE", "SCC", "MTRANS")
+obesity_data[categorical_features] <- lapply(obesity_data[categorical_features], function(x) {
+  numeric_values <- as.numeric(factor(x))
+  numeric_values - min(numeric_values, na.rm = TRUE)
+})
+
+# Identify columns to scale (excluding Age, BMI_cont, group, MTRANS because group/MTRANS used for grouping)
+columns_to_scale <- setdiff(names(obesity_data), c("Age", "BMI_squared", "group", "MTRANS"))
+
+# Min-max scaling for selected columns
+obesity_data[columns_to_scale] <- lapply(obesity_data[columns_to_scale], function(x) {
+  (x - min(x, na.rm = TRUE)) / (max(x, na.rm = TRUE) - min(x, na.rm = TRUE))
+})
+
+# Standardize Age
+obesity_data <- obesity_data %>%
+  mutate(
+    Age = (Age - mean(Age, na.rm = TRUE)) / sd(Age, na.rm = TRUE)
+  )
+
+# Define predictors
+predictors <- c( "FAVC","SMOKE", "SCC", "FAF", "TUE", "CH2O", "NCP", "FCVC")
+
+X <- as.matrix(obesity_data[, predictors])
+
+# Create a group variable from MTRANS
+obesity_data$group <- obesity_data$MTRANS  
+obesity_data$group <- as.integer(as.factor(obesity_data$group))
+
+# Final structure
+N <- nrow(obesity_data)
+P <- ncol(X)
+J <- length(unique(obesity_data$group))
+
+str(obesity_data)
+cat("Dimensions of X:", dim(X), "\n")
+cat("Number of Observations (N):", N, "\n")
+cat("Number of Groups (J):", J, "\n")
+cat("Number of Predictors (P):", P, "\n")
+
+##############################################################
+# Train-Test Split
+##############################################################
+set.seed(123) # For reproducibility
+train_index <- sample(1:N, size = floor(0.7*N), replace = FALSE)
+test_index <- setdiff(1:N, train_index)
+
+obesity_train <- obesity_data[train_index, ]
+obesity_test <- obesity_data[test_index, ]
+
+X_train <- X[train_index, ]
+X_test <- X[test_index, ]
+
+N_train <- nrow(X_train)
+N_test <- nrow(X_test)
+
+J_train <- length(unique(obesity_train$group))
+# Note: It's possible that test set doesn't have all groups present in training.
+# For simplicity, we assume all groups in test are also in train.
+# If not, you'd have to handle groups not seen in training (set u[group] = 0 or similar).
+
+##############################################################
+# Prepare Data for JAGS from the Training Set
+##############################################################
+jags_data <- list(
+  N = N_train,
+  J = J_train,
+  BMI_squared = obesity_train$BMI_squared,
+  X = X_train,
+  group = obesity_train$group
+)
+
+##############################################################
+# JAGS Model File (question_3.bug)
+# We'll write it here as a temporary file
+##############################################################
+model_string <- "
+model {
+  # Likelihood
+  for (i in 1:N) {
+    BMI_squared[i] ~ dnorm(mu[i], tau_residual)
+    mu[i] <- beta0 + inprod(X[i, ], beta[]) + u[group[i]]
+    # For WAIC calculation
+    likelihood[i] <- dnorm(BMI_squared[i], mu[i], tau_residual)
+  }
+
+  # Group effects
+  for (j in 1:J) {
+    u[j] ~ dnorm(0, tau_group)
+  }
+
+  # Priors for coefficients
+  beta0 ~ dnorm(0, 0.001)
+
+  beta[1] ~ dnorm(0, 0.001) # FAVC
+  beta[2] ~ dnorm(0, 0.001) # SMOKE
+  beta[3] ~ dnorm(0, 0.001) # SCC
+  beta[4] ~ dnorm(0, 0.001) # FAF
+  beta[5] ~ dnorm(0, 0.000001) # TUE
+  beta[6] ~ dnorm(0, 0.000001) # CH2O
+  beta[7] ~ dnorm(0, 0.001) # NCP
+  beta[8] ~ dnorm(0, 0.001) # FCVC
+
+  # Priors for variance
+  tau_residual ~ dgamma(0.01, 0.01)
+  sigma2 <- 1 / tau_residual
+
+  tau_group ~ dexp(1)
+}
+"
+
+# Write model to a temporary file
+model_file <- tempfile(fileext=".bug")
+cat(model_string, file = model_file)
+
+##############################################################
+# Initial values
+##############################################################
+inits <- function(chain_id) {
+  list(
+    beta0 = rnorm(1, 0, 1),          # Random starting point for intercept
+    beta = rnorm(P, 0, 1),           # Random starting points for coefficients
+    u = rnorm(J_train, 0, 1),        # Random starting points for group effects
+    tau_residual = rgamma(1, 1, 1),  # Random starting point for residual precision
+    tau_group = rgamma(1, 1, 1)      # Random starting point for group precision
+  )
+}
+##############################################################
+# Run the model on the training data
+##############################################################
+model <- jags.model(model_file, data = jags_data, inits = inits, n.chains = 3, n.adapt = 1000)
+update(model, 4000) # Burn-in
+
+samples <- coda.samples(model, variable.names = c("beta0", "beta", "u", "sigma2", "tau_group"), n.iter = 100000)
+
+##############################################################
+# Posterior summaries and convergence checks
+##############################################################
+print("Summary of posterior (after burn-in):")
+summary(samples)
+
+par(mar = c(2,2,2,2))
+plot(samples, density=FALSE, trace=TRUE, auto.layout = TRUE , ask=FALSE)
+
+autocorr.plot(samples[[1]])
+gelman_results <- gelman.diag(samples, autoburnin=FALSE)
+gelman.plot(samples, autoburnin=FALSE)
+print(gelman_results)
+
+##############################################################
+# WAIC Calculation
+# We need to sample the 'likelihood' node from the model
+##############################################################
+samples_likelihood <- coda.samples(model, variable.names=c("likelihood"), n.iter=10000)
+
+# Combine likelihood for all chains
+likelihood_chains <- do.call(rbind, samples_likelihood)
+
+# fbar: posterior mean of likelihood per datapoint
+fbar <- colMeans(likelihood_chains)
+
+# Remove any variable named 'var' to allow 'var' function usage
+#rm(var)
+
+# Column-wise variance of log(likelihood)
+pW <- sum(apply(log(likelihood_chains), 2, var))
+
+# WAIC
+WAIC <- -2 * sum(log(fbar)) + 2 * pW
+#cat("WAIC:", WAIC, "\n")
+print("WAIC:")
+print(WAIC)
+
+
+##############################################################
+# Extract posterior means for prediction on TEST set
+##############################################################
+posterior_mat <- as.matrix(samples)
+beta0_post <- posterior_mat[,"beta0"]
+beta_post <- posterior_mat[,grep("^beta\\[", colnames(posterior_mat))]
+u_indices <- grep("^u\\[", colnames(posterior_mat))
+u_post <- posterior_mat[, u_indices]
+
+# Posterior means
+beta0_hat <- mean(beta0_post)
+beta_hat <- apply(beta_post, 2, mean)
+u_hat <- apply(u_post, 2, mean)
+
+##############################################################
+# Predict on test set
+##############################################################
+# Note: test groups must align with train groups indexing
+# If some test group doesn't appear in training, it will be an issue. 
+# Assuming all test groups appear in train:
+group_test <- obesity_test$group
+y_test <- obesity_test$BMI_squared
+
+y_pred <- beta0_hat + X_test %*% beta_hat + u_hat[group_test]
+
+y_pred <- as.numeric(y_pred)
+
+##############################################################
+# Compute R² on test set
+##############################################################
+# R² = 1 - SS_res/SS_tot
+SS_res <- sum((y_test - y_pred)^2)
+SS_tot <- sum((y_test - mean(y_test))^2)
+R2_test <- 1 - (SS_res/SS_tot)
+
+print("R² on Test Set:")
+print(R2_test)
+
+##############################################################
+# DONE
+##############################################################
+
+```
+
+
+# Question 2: With different starting points and Double Exp Prior
+
+```{r}
+##############################################################
+# Full R Script: 
+# 1. Load and Prepare Data 
+# 2. Split into Train and Test 
+# 3. Run Bayesian Model (JAGS) on the Train Set 
+# 4. Predict on Test Set and Compute R²
+##############################################################
+
+# Clear workspace
+rm(list=ls())
+
+##############################################################
+# Load required libraries
+##############################################################
+library(ggplot2)     # For visualizations
+library(dplyr)        # For data manipulation
+library(rjags)        # For JAGS interface
+library(coda)         # For MCMC diagnostics
+
+##############################################################
+# Read the data
+##############################################################
+file_path <- "C:/Users/chopr/Desktop/Statistics Subjects/STAT431-ThisYear/project/dataset/obesity_dataset_linear.csv"
+obesity_data <- read.csv(file_path)
+
+# Display the first few rows of the dataframe
+head(obesity_data)
+
+##############################################################
+# Create BMI column (BMI = Weight / Height^2)
+##############################################################
+obesity_data <- obesity_data %>%
+  mutate(BMI_cont = Weight / (Height ^ 2)) %>%
+  mutate(BMI_squared = BMI_cont ^ 2) %>%
+  select(-CALC, -CAEC) # Dropping specified columns
+
+head(obesity_data)
+
+##############################################################
+# Convert select variables into factors
+##############################################################
+factor_vars <- c("Gender", "family_history_with_overweight", "FAVC", 
+                 "SMOKE", "SCC", "MTRANS", "NObeyesdad")
+obesity_data[factor_vars] <- lapply(obesity_data[factor_vars], factor)
+
+str(obesity_data)
+
+##############################################################
+# Exploratory Plots (optional - won't affect functionality)
+##############################################################
+# Numeric and categorical variable distribution checks
+numeric_vars <- sapply(obesity_data, is.numeric)
+categorical_vars <- sapply(obesity_data, is.factor)
+
+numeric_var_names <- names(obesity_data)[numeric_vars]
+categorical_var_names <- names(obesity_data)[categorical_vars]
+
+##############################################################
+# Drop Weight, NObeyesdad columns as previously done
+##############################################################
+obesity_data <- obesity_data %>%
+  select(-Weight, -NObeyesdad)
+
+head(obesity_data)
+
+
+##############################################################
+# Data Preparation for JAGS
+# Steps:
+# 1. Convert categorical features to numeric (0-based)
+# 2. Scale and standardize numeric features as before
+# 3. Create predictor matrix X
+##############################################################
+
+# Convert categorical features to numeric (0-based)
+categorical_features <- c("Gender", "family_history_with_overweight", "FAVC","SMOKE", "SCC", "MTRANS")
+obesity_data[categorical_features] <- lapply(obesity_data[categorical_features], function(x) {
+  numeric_values <- as.numeric(factor(x))
+  numeric_values - min(numeric_values, na.rm = TRUE)
+})
+
+# Identify columns to scale (excluding Age, BMI_cont, group, MTRANS because group/MTRANS used for grouping)
+columns_to_scale <- setdiff(names(obesity_data), c("Age", "BMI_squared", "group", "MTRANS"))
+
+# Min-max scaling for selected columns
+obesity_data[columns_to_scale] <- lapply(obesity_data[columns_to_scale], function(x) {
+  (x - min(x, na.rm = TRUE)) / (max(x, na.rm = TRUE) - min(x, na.rm = TRUE))
+})
+
+# Standardize Age
+obesity_data <- obesity_data %>%
+  mutate(
+    Age = (Age - mean(Age, na.rm = TRUE)) / sd(Age, na.rm = TRUE)
+  )
+
+# Define predictors
+predictors <- c( "FAVC","SMOKE", "SCC", "FAF", "TUE", "CH2O", "NCP", "FCVC")
+
+X <- as.matrix(obesity_data[, predictors])
+
+# Create a group variable from MTRANS
+obesity_data$group <- obesity_data$MTRANS  
+obesity_data$group <- as.integer(as.factor(obesity_data$group))
+
+# Final structure
+N <- nrow(obesity_data)
+P <- ncol(X)
+J <- length(unique(obesity_data$group))
+
+str(obesity_data)
+cat("Dimensions of X:", dim(X), "\n")
+cat("Number of Observations (N):", N, "\n")
+cat("Number of Groups (J):", J, "\n")
+cat("Number of Predictors (P):", P, "\n")
+
+##############################################################
+# Train-Test Split
+##############################################################
+set.seed(123) # For reproducibility
+train_index <- sample(1:N, size = floor(0.7*N), replace = FALSE)
+test_index <- setdiff(1:N, train_index)
+
+obesity_train <- obesity_data[train_index, ]
+obesity_test <- obesity_data[test_index, ]
+
+X_train <- X[train_index, ]
+X_test <- X[test_index, ]
+
+N_train <- nrow(X_train)
+N_test <- nrow(X_test)
+
+J_train <- length(unique(obesity_train$group))
+# Note: It's possible that test set doesn't have all groups present in training.
+# For simplicity, we assume all groups in test are also in train.
+# If not, you'd have to handle groups not seen in training (set u[group] = 0 or similar).
+
+##############################################################
+# Prepare Data for JAGS from the Training Set
+##############################################################
+jags_data <- list(
+  N = N_train,
+  J = J_train,
+  BMI_squared = obesity_train$BMI_squared,
+  X = X_train,
+  group = obesity_train$group
+)
+
+##############################################################
+# JAGS Model File (question_3.bug)
+# We'll write it here as a temporary file
+##############################################################
+model_string <- "
+model {
+  # Likelihood
+  for (i in 1:N) {
+    BMI_squared[i] ~ dnorm(mu[i], tau_residual)
+    mu[i] <- beta0 + inprod(X[i, ], beta[]) + u[group[i]]
+    # For WAIC calculation
+    likelihood[i] <- dnorm(BMI_squared[i], mu[i], tau_residual)
+  }
+
+  # Group effects
+  for (j in 1:J) {
+    u[j] ~ dnorm(0, tau_group)
+  }
+  
+
+  beta[1] ~ ddexp(0, lambda) # FAVC
+  beta[2] ~ ddexp(0, lambda) # SMOKE
+  beta[3] ~ ddexp(0, lambda) # SCC
+  beta[4] ~ ddexp(0, lambda) # FAF
+  beta[5] ~ ddexp(0, lambda) # TUE
+  beta[6] ~ ddexp(0, lambda) # CH2O
+  beta[7] ~ ddexp(0, lambda) # NCP
+  beta[8] ~ ddexp(0, lambda) # FCVC
+
+
+  # Priors for coefficients (double exponential/Laplacian prior)
+  beta0 ~ dnorm(0, 0.001)
+
+  # Hyperpriors for variance parameters
+  lambda ~ dexp(1)  # Hyperprior for the scale of double exponential prior
+  tau_residual ~ dgamma(0.01, 0.01)
+  sigma2 <- 1 / tau_residual
+
+  tau_group ~ dexp(1)
+}
+"
+
+# Write model to a temporary file
+model_file <- tempfile(fileext=".bug")
+cat(model_string, file = model_file)
+
+##############################################################
+# Initial values
+##############################################################
+inits <- function(chain_id) {
+  list(
+    beta0 = rnorm(1, 0, 1),          # Random starting point for intercept
+    beta = rnorm(P, 0, 1),           # Random starting points for coefficients
+    u = rnorm(J_train, 0, 1),        # Random starting points for group effects
+    tau_residual = rgamma(1, 1, 1),  # Random starting point for residual precision
+    tau_group = rgamma(1, 1, 1),      # Random starting point for group precision
+    lambda=rgamma(1, 1, 1)
+
+  )
+}
+##############################################################
+# Run the model on the training data
+##############################################################
+model <- jags.model(model_file, data = jags_data, inits = inits, n.chains = 3, n.adapt = 1000)
+update(model, 4000) # Burn-in
+
+samples <- coda.samples(model, variable.names = c("beta0", "beta", "u", "sigma2", "tau_group"), n.iter = 100000)
+
+##############################################################
+# Posterior summaries and convergence checks
+##############################################################
+print("Summary of posterior (after burn-in):")
+summary(samples)
+
+par(mar = c(2,2,2,2))
+plot(samples, density=FALSE, trace=TRUE, auto.layout = TRUE , ask=FALSE)
+
+autocorr.plot(samples[[1]])
+gelman_results <- gelman.diag(samples, autoburnin=FALSE)
+gelman.plot(samples, autoburnin=FALSE)
+print(gelman_results)
+
+##############################################################
+# WAIC Calculation
+# We need to sample the 'likelihood' node from the model
+##############################################################
+samples_likelihood <- coda.samples(model, variable.names=c("likelihood"), n.iter=10000)
+
+# Combine likelihood for all chains
+likelihood_chains <- do.call(rbind, samples_likelihood)
+
+# fbar: posterior mean of likelihood per datapoint
+fbar <- colMeans(likelihood_chains)
+
+# Remove any variable named 'var' to allow 'var' function usage
+#rm(var)
+
+# Column-wise variance of log(likelihood)
+pW <- sum(apply(log(likelihood_chains), 2, var))
+
+# WAIC
+WAIC <- -2 * sum(log(fbar)) + 2 * pW
+#cat("WAIC:", WAIC, "\n")
+print("WAIC:")
+print(WAIC)
+
+
+##############################################################
+# Extract posterior means for prediction on TEST set
+##############################################################
+posterior_mat <- as.matrix(samples)
+beta0_post <- posterior_mat[,"beta0"]
+beta_post <- posterior_mat[,grep("^beta\\[", colnames(posterior_mat))]
+u_indices <- grep("^u\\[", colnames(posterior_mat))
+u_post <- posterior_mat[, u_indices]
+
+# Posterior means
+beta0_hat <- mean(beta0_post)
+beta_hat <- apply(beta_post, 2, mean)
+u_hat <- apply(u_post, 2, mean)
+
+##############################################################
+# Predict on test set
+##############################################################
+# Note: test groups must align with train groups indexing
+# If some test group doesn't appear in training, it will be an issue. 
+# Assuming all test groups appear in train:
+group_test <- obesity_test$group
+y_test <- obesity_test$BMI_squared
+
+y_pred <- beta0_hat + X_test %*% beta_hat + u_hat[group_test]
+
+y_pred <- as.numeric(y_pred)
+
+##############################################################
+# Compute R² on test set
+##############################################################
+# R² = 1 - SS_res/SS_tot
+SS_res <- sum((y_test - y_pred)^2)
+SS_tot <- sum((y_test - mean(y_test))^2)
+R2_test <- 1 - (SS_res/SS_tot)
+
+print("R² on Test Set:")
+print(R2_test)
+
+##############################################################
+# DONE
+##############################################################
+
+```
+
+
+# Posterior Predictive Check
+
+```{r}
+##############################################################
+# Full R Script: 
+# 1. Load and Prepare Data 
+# 2. Split into Train and Test 
+# 3. Run Bayesian Model (JAGS) on the Train Set with Different Starting Points
+# 4. Posterior Predictive Checking
+# 5. Predict on Test Set and Compute R²
+##############################################################
+
+# Clear workspace
+rm(list=ls())
+
+##############################################################
+# Load required libraries
+##############################################################
+library(ggplot2)     # For visualizations
+library(dplyr)       # For data manipulation
+library(rjags)       # For JAGS interface
+library(coda)        # For MCMC diagnostics
+library(ggmcmc)      # For enhanced MCMC visualization
+library(reshape2)    # For data reshaping in plotting
+
+##############################################################
+# Read the data
+##############################################################
+file_path <- "C:/Users/chopr/Desktop/Statistics Subjects/STAT431-ThisYear/project/dataset/obesity_dataset_linear.csv"
+obesity_data <- read.csv(file_path)
+
+# Display the first few rows of the dataframe
+head(obesity_data)
+
+##############################################################
+# Create BMI column (BMI = Weight / Height^2)
+##############################################################
+obesity_data <- obesity_data %>%
+  mutate(BMI_cont = Weight / (Height ^ 2)) %>%
+  mutate(BMI_squared = BMI_cont ^ 2) %>%
+  select(-CALC, -CAEC) # Dropping specified columns
+
+head(obesity_data)
+
+##############################################################
+# Convert select variables into factors
+##############################################################
+factor_vars <- c("Gender", "family_history_with_overweight", "FAVC", 
+                "SMOKE", "SCC", "MTRANS", "NObeyesdad")
+obesity_data[factor_vars] <- lapply(obesity_data[factor_vars], factor)
+
+str(obesity_data)
+
+##############################################################
+# Exploratory Plots (optional - won't affect functionality)
+##############################################################
+# Numeric and categorical variable distribution checks
+numeric_vars <- sapply(obesity_data, is.numeric)
+categorical_vars <- sapply(obesity_data, is.factor)
+
+numeric_var_names <- names(obesity_data)[numeric_vars]
+categorical_var_names <- names(obesity_data)[categorical_vars]
+
+# Example: Plot histograms for numeric variables
+# Uncomment below lines to generate plots
+# for (var in numeric_var_names) {
+#   ggplot(obesity_data, aes_string(x = var)) +
+#     geom_histogram(binwidth = 0.1, fill = 'blue', color = 'black') +
+#     theme_minimal() +
+#     labs(title = paste("Histogram of", var)) +
+#     print()
+# }
+
+##############################################################
+# Drop Weight, NObeyesdad columns as previously done
+##############################################################
+obesity_data <- obesity_data %>%
+  select(-Weight, -NObeyesdad)
+
+head(obesity_data)
+
+##############################################################
+# Data Preparation for JAGS
+# Steps:
+# 1. Convert categorical features to numeric (0-based)
+# 2. Scale and standardize numeric features as before
+# 3. Create predictor matrix X
+##############################################################
+
+# Convert categorical features to numeric (0-based)
+categorical_features <- c("Gender", "family_history_with_overweight", "FAVC","SMOKE", "SCC", "MTRANS")
+obesity_data[categorical_features] <- lapply(obesity_data[categorical_features], function(x) {
+  numeric_values <- as.numeric(factor(x))
+  numeric_values - min(numeric_values, na.rm = TRUE)
+})
+
+# Identify columns to scale (excluding Age, BMI_squared, group, MTRANS)
+columns_to_scale <- setdiff(names(obesity_data), c("Age", "BMI_squared", "group", "MTRANS"))
+
+# Ensure only numeric columns are being scaled
+columns_to_scale <- names(obesity_data)[sapply(obesity_data[, columns_to_scale], is.numeric) &
+                                       !(names(obesity_data)[sapply(obesity_data, is.numeric)] %in% c("Age", "BMI_squared", "group", "MTRANS"))]
+
+# Min-max scaling for selected numeric columns
+obesity_data[columns_to_scale] <- lapply(obesity_data[columns_to_scale], function(x) {
+  (x - min(x, na.rm = TRUE)) / (max(x, na.rm = TRUE) - min(x, na.rm = TRUE))
+})
+
+# Standardize Age
+obesity_data <- obesity_data %>%
+  mutate(
+    Age = (Age - mean(Age, na.rm = TRUE)) / sd(Age, na.rm = TRUE)
+  )
+
+# Define predictors
+predictors <- c("FAVC","SMOKE", "SCC", "FAF", "TUE", "CH2O", "NCP", "FCVC")
+
+X <- as.matrix(obesity_data[, predictors])
+
+# Create a group variable from MTRANS
+obesity_data$group <- obesity_data$MTRANS  
+obesity_data$group <- as.integer(as.factor(obesity_data$group))
+
+# Final structure
+N <- nrow(obesity_data)
+P <- ncol(X)
+J <- length(unique(obesity_data$group))
+
+str(obesity_data)
+cat("Dimensions of X:", dim(X), "\n")
+cat("Number of Observations (N):", N, "\n")
+cat("Number of Groups (J):", J, "\n")
+cat("Number of Predictors (P):", P, "\n")
+
+##############################################################
+# Train-Test Split
+##############################################################
+set.seed(123) # For reproducibility
+train_index <- sample(1:N, size = floor(0.7*N), replace = FALSE)
+test_index <- setdiff(1:N, train_index)
+
+obesity_train <- obesity_data[train_index, ]
+obesity_test <- obesity_data[test_index, ]
+
+X_train <- X[train_index, ]
+X_test <- X[test_index, ]
+
+N_train <- nrow(X_train)
+N_test <- nrow(X_test)
+
+J_train <- length(unique(obesity_train$group))
+# Note: It's possible that test set doesn't have all groups present in training.
+# For simplicity, we assume all groups in test are also in train.
+# If not, you'd have to handle groups not seen in training (set u[group] = 0 or similar).
+
+##############################################################
+# Prepare Data for JAGS from the Training Set
+##############################################################
+jags_data <- list(
+  N = N_train,
+  J = J_train,
+  BMI_squared = obesity_train$BMI_squared,
+  X = X_train,
+  group = obesity_train$group
+)
+
+##############################################################
+# JAGS Model File (including y_rep)
+##############################################################
+model_string <- "
+model {
+  # Likelihood
+  for (i in 1:N) {
+    BMI_squared[i] ~ dnorm(mu[i], tau_residual)
+    mu[i] <- beta0 + inprod(X[i, ], beta[]) + u[group[i]]
+    # Posterior predictive replication
+    y_rep[i] ~ dnorm(mu[i], tau_residual)
+  }
+
+  # Group effects
+  for (j in 1:J) {
+    u[j] ~ dnorm(0, tau_group)
+  }
+
+  # Priors for coefficients
+  beta0 ~ dnorm(0, 0.001)
+
+  beta[1] ~ dnorm(0, 0.001) # FAVC
+  beta[2] ~ dnorm(0, 0.001) # SMOKE
+  beta[3] ~ dnorm(0, 0.001) # SCC
+  beta[4] ~ dnorm(0, 0.001) # FAF
+  beta[5] ~ dnorm(0, 0.000001) # TUE
+  beta[6] ~ dnorm(0, 0.000001) # CH2O
+  beta[7] ~ dnorm(0, 0.001) # NCP
+  beta[8] ~ dnorm(0, 0.001) # FCVC
+
+  # Priors for variance
+  tau_residual ~ dgamma(0.01, 0.01)
+  sigma2 <- 1 / tau_residual
+
+  tau_group ~ dexp(1)
+}
+"
+
+# Write model to a temporary file
+model_file <- tempfile(fileext=".bug")
+cat(model_string, file = model_file)
+
+##############################################################
+# Initial values for multiple chains
+##############################################################
+n_chains <- 3  # Number of chains
+
+# Function to generate initial values for each chain
+generate_inits <- function(chain_id) {
+  list(
+    beta0 = rnorm(1, 0, 1),          # Random starting point for intercept
+    beta = rnorm(P, 0, 1),           # Random starting points for coefficients
+    u = rnorm(J_train, 0, 1),        # Random starting points for group effects
+    tau_residual = rgamma(1, 1, 1),  # Random starting point for residual precision
+    tau_group = rgamma(1, 1, 1)      # Random starting point for group precision
+  )
+}
+
+# Create a list of initial values for all chains
+inits_list <- lapply(1:n_chains, generate_inits)
+
+##############################################################
+# Run the model on the training data with different initial values
+##############################################################
+model <- jags.model(
+  file = model_file,
+  data = jags_data,
+  inits = inits_list,  # Pass the list of initial values
+  n.chains = n_chains,
+  n.adapt = 1000
+)
+
+update(model, 4000) # Burn-in
+
+# Include 'y_rep' in the variables to monitor
+samples <- coda.samples(
+  model,
+  variable.names = c("beta0", "beta", "u", "sigma2", "tau_group", "y_rep"),
+  n.iter = 50000
+)
+
+##############################################################
+# Posterior summaries and convergence checks
+##############################################################
+#print("Summary of posterior (after burn-in):")
+#print(summary(samples))
+
+# Trace plots to visualize chain mixing
+#plot(samples, density=FALSE, trace=TRUE, auto.layout = TRUE, ask=FALSE)
+
+# Autocorrelation plots for each parameter
+#autocorr.plot(samples)
+
+# Gelman-Rubin diagnostics
+#gelman_results <- gelman.diag(samples, autoburnin=FALSE)
+#print("Gelman-Rubin Diagnostic:")
+#print(gelman_results)
+
+# Gelman-Rubin plots
+#gelman.plot(samples, autoburnin=FALSE)
+
+##############################################################
+# Posterior Predictive Checking
+##############################################################
+print("Performing Posterior Predictive Checking...")
+
+# Extract y_rep samples
+samples_matrix <- as.matrix(samples)
+
+# Identify columns corresponding to y_rep
+y_rep_indices <- grep("^y_rep\\[", colnames(samples_matrix))
+
+# Extract y_rep samples
+y_rep_samples <- samples_matrix[, y_rep_indices]
+
+# Compute discrepancy measures
+# Example: Mean and Variance
+D_observed_mean <- mean(jags_data$BMI_squared)
+D_observed_var <- var(jags_data$BMI_squared)
+
+D_rep_mean <- rowMeans(y_rep_samples)
+D_rep_var <- apply(y_rep_samples, 2, var)
+
+# Bayesian p-value for the mean
+bayes_p_mean <- mean(D_rep_mean >= D_observed_mean)
+
+# Bayesian p-value for the variance
+bayes_p_var <- mean(D_rep_var >= D_observed_var)
+
+cat("Bayesian p-value for the mean:", bayes_p_mean, "\n")
+cat("Bayesian p-value for the variance:", bayes_p_var, "\n")
+
+# Visual Comparison: Density Plot of Observed vs Replicated Data
+# Sample a subset of y_rep to reduce memory and plotting time
+set.seed(123)
+y_rep_sample <- y_rep_samples[sample(nrow(y_rep_samples), 1000), ]
+
+# Melt the replicated data for ggplot
+y_rep_melt <- melt(y_rep_sample)
+colnames(y_rep_melt) <- c("Iteration", "Observation", "y_rep")
+
+# Density Plot
+ggplot() +
+  geom_density(aes(x = jags_data$BMI_squared), fill = "blue", alpha = 0.5, color = "blue") +
+  geom_density(aes(x = y_rep_melt$y_rep), fill = "red", alpha = 0.3, color = "red") +
+  labs(title = "Density Plot: Observed vs Posterior Predictive Replicated Data",
+       x = "BMI_squared",
+       y = "Density") +
+  theme_minimal() +
+  scale_fill_manual(name = "Data",
+                    values = c("Observed" = "blue", "Replicated" = "red")) +
+  theme(legend.position = "none") +
+  annotate("text", x = Inf, y = Inf, label = "Blue: Observed\nRed: Replicated", 
+           hjust = 1.1, vjust = 1.1, color = "black")
+
+# Optional: Histograms
+ggplot() +
+  geom_histogram(aes(x = jags_data$BMI_squared), bins = 30, fill = "blue", alpha = 0.5) +
+  geom_histogram(aes(x = y_rep_melt$y_rep), bins = 30, fill = "red", alpha = 0.3) +
+  labs(title = "Histogram: Observed vs Posterior Predictive Replicated Data",
+       x = "BMI_squared",
+       y = "Frequency") +
+  theme_minimal() +
+  scale_fill_manual(name = "Data",
+                    values = c("Observed" = "blue", "Replicated" = "red")) +
+  theme(legend.position = "none") +
+  annotate("text", x = Inf, y = Inf, label = "Blue: Observed\nRed: Replicated", 
+           hjust = 1.1, vjust = 1.1, color = "black")
+
+##############################################################
+# Extract posterior means for prediction on TEST set
+##############################################################
+posterior_mat <- as.matrix(samples)
+beta0_post <- posterior_mat[,"beta0"]
+beta_post <- posterior_mat[,grep("^beta\\[", colnames(posterior_mat))]
+u_indices <- grep("^u\\[", colnames(posterior_mat))
+u_post <- posterior_mat[, u_indices]
+
+# Posterior means
+beta0_hat <- mean(beta0_post)
+beta_hat <- apply(beta_post, 2, mean)
+u_hat <- apply(u_post, 2, mean)
+
+##############################################################
+# Predict on test set
+##############################################################
+# Note: test groups must align with train groups indexing
+# If some test group doesn't appear in training, it will be an issue. 
+# Assuming all test groups appear in train:
+group_test <- obesity_test$group
+y_test <- obesity_test$BMI_squared
+
+y_pred <- beta0_hat + X_test %*% beta_hat + u_hat[group_test]
+
+y_pred <- as.numeric(y_pred)
+
+##############################################################
+# Compute R² on test set
+##############################################################
+# R² = 1 - SS_res/SS_tot
+SS_res <- sum((y_test - y_pred)^2)
+SS_tot <- sum((y_test - mean(y_test))^2)
+R2_test <- 1 - (SS_res/SS_tot)
+
+print("R² on Test Set:")
+print(R2_test)
 
 ##############################################################
 # DONE
